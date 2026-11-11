@@ -1,0 +1,811 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>OpenBots Internals</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=STIX+Two+Text:ital,wght@0,400;0,600;0,700;1,400;1,600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one textbook column (max 1040px), numbered chapters, each a short argument followed by a captioned, animated figure. */
+:root{
+  --paper:#fbfaf6; --paper-2:#f2f0e8; --ink:#15171a; --ink-soft:#585b61; --ink-faint:#9a9ca1;
+  --grid:#e8e6de; --grid-strong:#d3d1c8; --pen:#c2402a; --pen-soft:rgba(194,64,42,.12);
+  --serif:"STIX Two Text","Cambria Math",Georgia,serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --maxw:1040px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#141619; --paper-2:#1b1e22; --ink:#e8e5dc; --ink-soft:#a9a79f; --ink-faint:#6e6d68;
+  --grid:#23272c; --grid-strong:#343941; --pen:#e46a51; --pen-soft:rgba(228,106,81,.16); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#141619; --paper-2:#1b1e22; --ink:#e8e5dc; --ink-soft:#a9a79f; --ink-faint:#6e6d68;
+  --grid:#23272c; --grid-strong:#343941; --pen:#e46a51; --pen-soft:rgba(228,106,81,.16); color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);font-family:var(--serif);font-size:18px;line-height:1.6;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));}
+.wrap{max-width:var(--maxw);margin:0 auto}
+a{color:inherit;text-decoration-color:var(--pen);text-underline-offset:3px}
+code,.mono{font-family:var(--mono);font-size:.8em;letter-spacing:-.01em}
+p code,li code,td code{background:var(--paper-2);padding:.08em .32em;border-radius:3px;white-space:nowrap}
+h1,h2,h3{font-weight:600;text-wrap:balance;line-height:1.15;margin:0}
+p{margin:0}
+
+/* nav */
+nav.top{display:flex;align-items:baseline;gap:20px;flex-wrap:wrap;padding-block:22px 18px;border-bottom:1px solid var(--ink)}
+nav.top .brand{font-size:22px;font-weight:700}
+nav.top .brand span{font-style:italic;font-weight:400;color:var(--ink-soft);font-size:15px;margin-left:6px}
+nav.top .links{display:flex;gap:18px;flex-wrap:wrap;margin-left:auto;font-size:15px}
+nav.top .links a{text-decoration:none;color:var(--ink-soft)}
+nav.top .links a:hover{color:var(--ink)}
+
+/* hero */
+header.hero{display:grid;grid-template-columns:1.1fr .9fr;gap:40px;padding-block:56px 48px;align-items:center}
+header.hero > *{min-width:0}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--pen)}
+.hero h1{font-size:clamp(38px,6vw,64px);margin-top:14px;letter-spacing:-.01em}
+.hero h1 em{font-weight:400}
+.hero .lede{font-size:21px;color:var(--ink-soft);margin-top:18px;max-width:34ch}
+.hero .meta{margin-top:24px;font-family:var(--mono);font-size:13px;color:var(--ink-soft);display:flex;gap:8px 18px;flex-wrap:wrap}
+.ticker{border:1px solid var(--ink);background:var(--paper);
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:22px 22px;
+  padding:18px 18px 14px;font-family:var(--mono);font-size:12.5px;min-height:300px;position:relative}
+.ticker .bar{display:flex;justify-content:space-between;color:var(--ink-faint);font-size:11px;letter-spacing:.08em;text-transform:uppercase;border-bottom:1px solid var(--grid-strong);padding-bottom:8px;margin-bottom:10px}
+.ticker ol{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.ticker li{display:grid;grid-template-columns:5.2em 1fr;gap:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ticker li .t{color:var(--ink-faint)}
+.ticker li .ev{color:var(--ink)}
+.ticker li .ev b{color:var(--pen);font-weight:600}
+.ticker li.new{animation:slide .35s ease-out}
+@keyframes slide{from{transform:translateY(6px);opacity:.2}to{transform:none;opacity:1}}
+.ticker .cap{position:absolute;right:14px;bottom:10px;font-family:var(--serif);font-style:italic;color:var(--ink-soft);font-size:13px}
+
+/* sections */
+section{padding-block:56px;border-top:1px solid var(--grid-strong)}
+.sec-head{display:flex;align-items:baseline;gap:16px;margin-bottom:22px}
+.sec-head .mark{font-family:var(--serif);font-style:italic;color:var(--pen);font-size:30px;line-height:1;min-width:1.1em}
+.sec-head h2{font-size:clamp(28px,4vw,40px)}
+.sec-intro{max-width:66ch;color:var(--ink);margin-bottom:26px}
+.prose{display:grid;gap:14px;max-width:66ch}
+.two{display:grid;grid-template-columns:1fr 1.15fr;gap:40px;align-items:start}
+.two > *{min-width:0}
+.definition{border-left:2px solid var(--pen);padding:4px 0 4px 18px;font-style:italic}
+.definition .lab{display:block;font-style:normal;font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--pen);margin-bottom:4px}
+
+figure{margin:0}
+figure.sketch{border:1px solid var(--grid-strong);background:var(--paper);padding:14px}
+.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+figcaption{font-style:italic;color:var(--ink-soft);font-size:15px;margin-top:10px;text-align:center}
+svg{display:block;width:100%;height:auto}
+.wide svg{min-width:760px}
+
+/* svg vocabulary */
+.box{fill:var(--paper);stroke:var(--ink);stroke-width:1.4}
+.box.soft{fill:var(--paper-2);stroke:var(--grid-strong)}
+.box.zone{fill:none;stroke:var(--ink);stroke-dasharray:6 5;stroke-width:1.1}
+.lit .box{stroke:var(--pen);stroke-width:2.2;fill:var(--pen-soft)}
+.wire{fill:none;stroke:var(--ink-faint);stroke-width:1.3}
+.wire.hot{stroke:var(--pen);stroke-width:2}
+.flow{fill:none;stroke:var(--ink-soft);stroke-width:1.3;stroke-dasharray:4 6;animation:flow 1.6s linear infinite}
+@keyframes flow{to{stroke-dashoffset:-20}}
+.t{fill:var(--ink);font-family:var(--serif);font-size:15px}
+.t.b{font-weight:700}
+.t.i{font-style:italic}
+.t.s{fill:var(--ink-soft);font-size:12.5px;font-style:italic}
+.t.m{font-family:var(--mono);font-size:11px;fill:var(--ink-soft)}
+.t.mid{text-anchor:middle}
+.t.end{text-anchor:end}
+.packet{fill:var(--pen);stroke:var(--paper);stroke-width:2.5}
+.arrowhead{fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round}
+svg{color:var(--ink-faint)}
+
+/* figure 1 controls */
+.controls{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.controls button,.btn{font-family:var(--mono);font-size:12.5px;background:var(--paper);color:var(--ink);border:1px solid var(--ink);padding:7px 12px;cursor:pointer;border-radius:0}
+.controls button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.controls button:hover{border-color:var(--pen)}
+button:focus-visible{outline:2px solid var(--pen);outline-offset:2px}
+.fig1{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:18px;align-items:start}
+.log{font-size:15px;border-left:1px solid var(--grid-strong);padding-left:16px}
+.log h3{font-size:13px;font-family:var(--mono);font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:8px}
+.log ol{margin:0;padding-left:1.4em;display:grid;gap:6px}
+.log li{color:var(--ink-soft);transition:color .2s}
+.log li.on{color:var(--ink)}
+.log li.on::marker{color:var(--pen);font-weight:700}
+.log li.now{color:var(--ink);background:var(--pen-soft);margin-left:-6px;padding-left:6px}
+
+/* sequence figures */
+.seq{display:grid;grid-template-columns:minmax(0,1fr);gap:18px}
+.seq .row-ctl{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.seq .row-ctl .hint{font-style:italic;color:var(--ink-soft);font-size:15px}
+.seq .lane-h{fill:var(--paper-2);stroke:var(--ink);stroke-width:1.2}
+.seq .life{stroke:var(--grid-strong);stroke-dasharray:3 5}
+.seq .msg{transition:opacity .25s}
+.seq .msg.dim{opacity:.13}
+.seq .msg line,.seq .msg path.l{stroke:var(--ink);stroke-width:1.3;fill:none}
+.seq .msg.now line,.seq .msg.now path.l{stroke:var(--pen);stroke-width:2}
+.seq .lbl{font-family:var(--mono);font-size:11.5px;fill:var(--ink);text-anchor:middle;paint-order:stroke;stroke:var(--paper);stroke-width:5px;stroke-linejoin:round}
+.seq .num{font-family:var(--serif);font-style:italic;font-size:13px;fill:var(--pen)}
+ol.detail{margin:0;padding-left:1.6em;display:grid;grid-template-columns:1fr 1fr;gap:6px 36px;font-size:16px}
+ol.detail li{color:var(--ink-soft)}
+ol.detail li b{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--ink);display:block}
+ol.detail li.now{color:var(--ink)}
+ol.detail li.now::marker{color:var(--pen)}
+
+/* algorithm block */
+.algo{border-top:1px solid var(--ink);border-bottom:1px solid var(--ink);padding:10px 0;font-size:15.5px;margin-top:20px}
+.algo .h{font-weight:700;border-bottom:1px solid var(--grid-strong);padding-bottom:6px;margin-bottom:6px}
+.algo ol{margin:0;padding-left:2.2em;font-family:var(--serif)}
+.algo li{padding-block:1px}
+.algo .kw{font-weight:700}
+.algo .fn{font-variant:small-caps;letter-spacing:.02em}
+.algo .in1{padding-left:1.4em}
+.algo .in2{padding-left:2.8em}
+.algo .cmt{color:var(--ink-faint);font-style:italic;float:right}
+
+/* tables */
+.tables{display:grid;grid-template-columns:1fr 1fr;gap:36px}
+.tables > div{min-width:0}
+.tables h3{font-size:22px;margin-bottom:6px}
+.tables p.sub{color:var(--ink-soft);font-style:italic;margin-bottom:12px;font-size:16px}
+table{border-collapse:collapse;width:100%;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:7px 10px 7px 0;border-bottom:1px solid var(--grid-strong)}
+th{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);font-weight:600;border-bottom:1px solid var(--ink)}
+td:first-child{white-space:nowrap}
+td .mono{font-size:12px}
+
+.callout{background:var(--paper-2);padding:16px 18px;font-size:16px;max-width:66ch}
+.callout b{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--pen);display:block;margin-bottom:4px}
+.ladder{list-style:none;margin:0;padding:0;display:grid;gap:0;counter-reset:l;font-size:16px}
+.ladder li{display:grid;grid-template-columns:2.2em 1fr;gap:10px;padding-block:10px;border-bottom:1px solid var(--grid-strong);counter-increment:l}
+.ladder li::before{content:counter(l);font-style:italic;color:var(--pen);font-size:20px;line-height:1.2}
+
+.syllabus{width:100%}
+.syllabus td:nth-child(2) .mono{color:var(--ink)}
+.syllabus td:last-child{color:var(--ink-soft)}
+
+footer{border-top:1px solid var(--ink);padding-block:28px 48px;display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;color:var(--ink-soft);font-size:15px}
+
+@media (max-width:860px){
+  header.hero,.two,.tables,.fig1{grid-template-columns:1fr}
+  .log{border-left:0;padding-left:0;border-top:1px solid var(--grid-strong);padding-top:14px}
+  ol.detail{grid-template-columns:1fr}
+  body{font-size:17px}
+}
+@media (prefers-reduced-motion:reduce){.flow{animation:none}.ticker li.new{animation:none}}
+</style>
+</head>
+<body>
+
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <filter id="rough" x="-3%" y="-3%" width="106%" height="106%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="4"/>
+      <feDisplacementMap in="SourceGraphic" scale="2.6"/>
+    </filter>
+    <marker id="ah" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M1 1 L9 5 L1 9" class="arrowhead"/>
+    </marker>
+    <marker id="ahi" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M1 1 L9 5 L1 9" fill="none" stroke="var(--ink)" stroke-width="1.4" stroke-linecap="round"/>
+    </marker>
+    <marker id="ahp" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M1 1 L9 5 L1 9" fill="none" stroke="var(--pen)" stroke-width="1.6" stroke-linecap="round"/>
+    </marker>
+  </defs>
+</svg>
+
+<div class="wrap">
+<nav class="top" aria-label="Chapters">
+  <div class="brand">OpenBots <span>internals, drawn</span></div>
+  <div class="links">
+    <a href="#system">System</a><a href="#loop">The loop</a><a href="#message">A message</a><a href="#stores">Stores</a><a href="#coding">Coding agents</a><a href="#design">Deployment</a><a href="#reading">Reading list</a>
+  </div>
+</nav>
+
+<header class="hero">
+  <div>
+    <div class="eyebrow">How OpenBots works</div>
+    <h1>A Bot is a run <em>in a queue.</em></h1>
+    <p class="lede">A message becomes a row in Postgres, a job in Redis, and a loop around a model. This page follows one through the system, figure by figure.</p>
+    <div class="meta"><span>apps/server</span><span>packages/agent</span><span>BullMQ</span><span>Postgres 16</span><span>Redis 7</span></div>
+  </div>
+  <div class="ticker" aria-label="Example event stream on openbots:events">
+    <div class="bar"><span>SUBSCRIBE openbots:events</span><span id="tickClock">live</span></div>
+    <ol id="ticker"></ol>
+    <div class="cap">what a chat socket hears</div>
+  </div>
+</header>
+</div>
+
+<div class="wrap">
+
+<!-- 1 SYSTEM -->
+<section id="system">
+  <div class="sec-head"><span class="mark">1</span><h2>The whole system</h2></div>
+  <p class="sec-intro">One server process (API, WebSocket gateway, workers and a scheduler), two stores, and one sandboxed computer per owner. Everything a user sees arrives as an event on a single Redis channel. Pick a request below and watch where it goes.</p>
+
+  <div class="controls" role="group" aria-label="Choose a request">
+    <button type="button" data-scn="web" aria-pressed="true">Chat from the web</button>
+    <button type="button" data-scn="ios" aria-pressed="false">Chat from an iPhone</button>
+    <button type="button" data-scn="hook" aria-pressed="false">GitHub webhook</button>
+    <button type="button" data-scn="routine" aria-pressed="false">Routine fires</button>
+    <button type="button" data-scn="coder" aria-pressed="false">Spawn a coding agent</button>
+  </div>
+
+  <div class="fig1">
+    <figure class="sketch">
+      <div class="scroll wide">
+      <svg id="sys" viewBox="0 0 1000 590" role="img" aria-label="OpenBots architecture with animated request paths">
+        <g id="sysWires">
+          <path class="wire" id="w-web-api" d="M170 92 L400 92" marker-end="url(#ah)"/>
+          <path class="wire" id="w-gw-web" d="M400 172 L362 172 L362 108 L170 108" marker-end="url(#ah)"/>
+          <path class="wire" id="w-ios-api" d="M170 182 L348 182 L348 80 L400 80" marker-end="url(#ah)"/>
+          <path class="wire" id="w-gw-ios" d="M400 198 L170 198" marker-end="url(#ah)"/>
+          <path class="wire" id="w-hook-ing" d="M170 275 L400 275" marker-end="url(#ah)"/>
+          <path class="wire" id="w-api-pg" d="M400 112 L390 112 L390 515 L400 515" marker-end="url(#ah)"/>
+          <path class="wire" id="w-api-redis" d="M530 100 L545 100 L545 455 L600 455 L600 470" marker-end="url(#ah)"/>
+          <path class="wire" id="w-ing-redis" d="M530 285 L545 285 L545 455 L600 455 L600 470"/>
+          <path class="wire" id="w-redis-gw" d="M600 470 L600 455 L545 455 L545 190 L530 190" marker-end="url(#ah)"/>
+          <path class="wire" id="w-redis-wk" d="M620 470 L620 400" marker-end="url(#ah)"/>
+          <path class="wire" id="w-wk-pg" d="M580 400 L580 440 L465 440 L465 470" marker-end="url(#ah)"/>
+          <path class="wire" id="w-wk-models" d="M680 175 L730 175 L730 95 L780 95" marker-end="url(#ah)"/>
+          <path class="wire" id="w-wk-comp" d="M680 320 L760 320" marker-end="url(#ah)"/>
+          <path class="wire" id="w-sched-redis" d="M680 95 L690 95 L690 450 L660 450 L660 470" marker-end="url(#ah)"/>
+          <path class="wire" id="w-comp-models" d="M870 210 L870 140" marker-end="url(#ah)"/>
+        </g>
+        <g filter="url(#rough)">
+          <rect class="box zone" x="380" y="30" width="320" height="390"/>
+        </g>
+        <text class="t m" x="390" y="50">apps/server · OPENBOTS_ROLE=all</text>
+
+        <g id="n-web"><g filter="url(#rough)"><rect class="box" x="20" y="60" width="150" height="60"/></g>
+          <text class="t b" x="32" y="85">Web &amp; Mac app</text><text class="t s" x="32" y="106">React SPA · Electron</text></g>
+        <g id="n-ios"><g filter="url(#rough)"><rect class="box" x="20" y="160" width="150" height="60"/></g>
+          <text class="t b" x="32" y="185">iPhone app</text><text class="t s" x="32" y="206">Expo · native tunnel</text></g>
+        <g id="n-hook"><g filter="url(#rough)"><rect class="box" x="20" y="245" width="150" height="60"/></g>
+          <text class="t b" x="32" y="270">Webhooks</text><text class="t s" x="32" y="291">GitHub · Slack · Stripe</text></g>
+        <g id="n-relay"><g filter="url(#rough)"><rect class="box soft" x="205" y="150" width="125" height="70"/></g>
+          <text class="t b mid" x="267" y="172">openbots-relay</text><text class="t s mid" x="267" y="213">Fly · Noise IK</text></g>
+
+        <g id="n-api"><g filter="url(#rough)"><rect class="box" x="400" y="65" width="130" height="60"/></g>
+          <text class="t b" x="412" y="90">REST API</text><text class="t s" x="412" y="111">Hono · /api/v1</text></g>
+        <g id="n-gw"><g filter="url(#rough)"><rect class="box" x="400" y="150" width="130" height="60"/></g>
+          <text class="t b" x="412" y="175">WS gateway</text><text class="t s" x="412" y="196">/ws · subscribe</text></g>
+        <g id="n-ingress"><g filter="url(#rough)"><rect class="box" x="400" y="245" width="130" height="60"/></g>
+          <text class="t b" x="412" y="270">Hook ingress</text><text class="t s" x="412" y="291">/hooks · HMAC</text></g>
+        <g id="n-router"><g filter="url(#rough)"><rect class="box soft" x="400" y="330" width="130" height="70"/></g>
+          <text class="t b" x="412" y="355">Router</text><text class="t s" x="412" y="376">group chats</text><text class="t s" x="412" y="392">Bot to Bot</text></g>
+        <g id="n-sched"><g filter="url(#rough)"><rect class="box" x="560" y="65" width="120" height="60"/></g>
+          <text class="t b" x="572" y="90">Scheduler</text><text class="t s" x="572" y="111">routines · 30 s</text></g>
+        <g id="n-workers"><g filter="url(#rough)"><rect class="box" x="560" y="150" width="120" height="250"/></g>
+          <text class="t b" x="572" y="175">Workers</text>
+          <text class="t m" x="572" y="200">runs ×8</text><text class="t m" x="572" y="220">coders ×8</text>
+          <text class="t m" x="572" y="240">bot-state ×4</text><text class="t m" x="572" y="260">approvals ×2</text>
+          <text class="t m" x="572" y="280">logins ×2</text><text class="t m" x="572" y="300">event-deliveries</text>
+          <text class="t m" x="572" y="320">memories ×2</text><text class="t m" x="572" y="340">push</text>
+          <text class="t s" x="572" y="380">packages/agent</text></g>
+
+        <g id="n-pg"><g filter="url(#rough)"><rect class="box" x="400" y="470" width="130" height="90"/></g>
+          <text class="t b" x="412" y="497">Postgres 16</text><text class="t s" x="412" y="518">pgvector · RLS</text><text class="t m" x="412" y="545">source of truth</text></g>
+        <g id="n-redis"><g filter="url(#rough)"><rect class="box" x="560" y="470" width="120" height="90"/></g>
+          <text class="t b" x="572" y="497">Redis 7</text><text class="t s" x="572" y="518">BullMQ · pub/sub</text><text class="t m" x="572" y="545">openbots:events</text></g>
+
+        <g id="n-models"><g filter="url(#rough)"><rect class="box" x="780" y="50" width="200" height="90"/></g>
+          <text class="t b" x="794" y="76">Model APIs</text><text class="t s" x="794" y="98">Anthropic · OpenAI · Google</text><text class="t s" x="794" y="118">xAI · Ollama · custom</text></g>
+        <g id="n-comp"><g filter="url(#rough)"><rect class="box" x="760" y="210" width="220" height="220"/></g>
+          <text class="t b" x="774" y="236">Computer</text><text class="t s" x="774" y="256">one container per owner</text>
+          <text class="t m" x="774" y="286">computer-agent</text>
+          <text class="t m" x="786" y="306">/pty   terminal</text>
+          <text class="t m" x="786" y="324">/vnc   screens</text>
+          <text class="t m" x="786" y="342">/mcp/stdio</text>
+          <text class="t m" x="786" y="360">/coder  claude · codex · pi</text>
+          <text class="t m" x="774" y="388">subscription bridge</text>
+          <text class="t s" x="774" y="414">git worktrees live here</text></g>
+        <g id="pk"></g>
+      </svg>
+      </div>
+      <figcaption>Fig. 1. The system, with a request in flight. Red is the request.</figcaption>
+    </figure>
+    <div class="log" aria-live="polite">
+      <h3 id="logTitle">Chat from the web</h3>
+      <ol id="logList"></ol>
+      <p style="margin-top:14px"><button class="btn" type="button" id="replay">Replay</button></p>
+    </div>
+  </div>
+</section>
+
+<!-- 2 LOOP -->
+<section id="loop">
+  <div class="sec-head"><span class="mark">2</span><h2>A run is a loop</h2></div>
+  <div class="two">
+    <div class="prose">
+      <p class="definition"><span class="lab">Definition 2.1</span>A <em>run</em> is one job on the <code>runs</code> queue. It is a single <code>streamText</code> call that can take up to 40 steps. Each step may ask for tools; each tool result is fed back as input to the next step. The run ends when the model answers without asking for anything.</p>
+      <p>Around that loop, OpenBots adds three things. <strong>Gating</strong>: every tool goes through <code>gated()</code>, which applies the Bot's policy and can park the run until someone approves. <strong>Steering</strong>: messages that arrive mid run are not queued as a new run; <code>prepareStep</code> drains them into the transcript before the next step. <strong>Checkpoints</strong>: the run's state is saved after steps and tool calls, so if a worker dies another one takes over (at most twice).</p>
+      <div class="algo" aria-label="Run algorithm">
+        <div class="h">Algorithm 1 &nbsp;<span class="fn">ProcessRun</span>(job)</div>
+        <ol>
+          <li>model ← <span class="fn">ResolveRunModel</span>(bot) <span class="cmt">api key or subscription</span></li>
+          <li>ctx ← <span class="fn">AssembleContext</span>(chat, 40) <span class="cmt">+ memories, tools</span></li>
+          <li><span class="kw">for</span> step ← 1 <span class="kw">to</span> 40 <span class="kw">do</span></li>
+          <li class="in1">ctx ← ctx ∪ <span class="fn">DrainSteering</span>() <span class="cmt">prepareStep</span></li>
+          <li class="in1">reply ← <span class="fn">Step</span>(model, ctx) <span class="cmt">stream deltas</span></li>
+          <li class="in1"><span class="kw">if</span> reply has no tool calls <span class="kw">then break</span></li>
+          <li class="in1"><span class="kw">for each</span> call <span class="kw">in</span> reply <span class="kw">do</span></li>
+          <li class="in2">result ← <span class="fn">Gated</span>(call) <span class="cmt">policy, approval</span></li>
+          <li class="in2">ctx ← ctx ∪ result; <span class="fn">Checkpoint</span>()</li>
+          <li><span class="fn">Finalize</span>() <span class="cmt">message.completed</span></li>
+        </ol>
+      </div>
+    </div>
+    <figure class="sketch">
+      <svg id="loopFig" viewBox="0 0 560 480" role="img" aria-label="The run loop">
+        <g filter="url(#rough)">
+          <rect class="box" x="200" y="52" width="200" height="50"/>
+          <rect class="box" x="200" y="140" width="200" height="54"/>
+          <path class="box" d="M300 226 L374 266 L300 306 L226 266 Z"/>
+          <rect class="box" x="200" y="336" width="200" height="50"/>
+          <rect class="box" x="200" y="410" width="200" height="50"/>
+        </g>
+        <path class="wire" d="M300 30 L300 50" marker-end="url(#ah)"/>
+        <path class="wire" d="M300 102 L300 138" marker-end="url(#ah)"/>
+        <path class="wire" d="M300 194 L300 224" marker-end="url(#ah)"/>
+        <path class="wire" d="M374 266 L446 266" marker-end="url(#ah)"/>
+        <path class="wire" d="M300 306 L300 334" marker-end="url(#ah)"/>
+        <path class="wire" d="M300 386 L300 408" marker-end="url(#ah)"/>
+        <path class="wire" d="M200 435 C 110 435, 84 395, 84 300 C 84 200, 112 167, 198 167" marker-end="url(#ah)"/>
+        <text class="t i mid" x="300" y="22">a user message, webhook or routine</text>
+        <text class="t b mid" x="300" y="76">assemble context</text><text class="t s mid" x="300" y="94">40 messages · memories · tools</text>
+        <text class="t b mid" x="300" y="164">model step</text><text class="t s mid" x="300" y="183">streamText · deltas to Redis</text>
+        <text class="t mid" x="300" y="271">tool calls?</text>
+        <text class="t s" x="390" y="257">no</text><text class="t s" x="310" y="326">yes</text>
+        <text class="t b" x="452" y="262">finalize</text><text class="t s" x="452" y="280">message.completed</text>
+        <text class="t b mid" x="300" y="360">gated()</text><text class="t s mid" x="300" y="377">policy · approval · may wait</text>
+        <text class="t b mid" x="300" y="433">run tool, checkpoint</text><text class="t s mid" x="300" y="451">builtin · MCP · computer</text>
+        <text class="t i" x="60" y="300" transform="rotate(-90 60 300)" text-anchor="middle">prepareStep drains steering</text>
+        <text class="t m end" x="548" y="470" id="stepCount">step 1 / 40</text>
+        <path id="lp-in" d="M300 30 L300 167" fill="none"/>
+        <path id="lp-round" d="M300 167 L300 266 L300 435 L200 435 C 110 435, 84 395, 84 300 C 84 200, 112 167, 198 167 L300 167" fill="none"/>
+        <path id="lp-out" d="M300 167 L300 266 L470 266" fill="none"/>
+        <g id="lpk"></g>
+      </svg>
+      <figcaption>Fig. 2. The loop inside <code>executeRun</code>. The dot is one run.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- 3 MESSAGE -->
+<section id="message">
+  <div class="sec-head"><span class="mark">3</span><h2>One message, start to finish</h2></div>
+  <p class="sec-intro">The same story as Fig. 1, slowed down and drawn as a sequence. The API never calls the model. It writes, publishes, and enqueues, then returns. Everything after that is a worker talking to Postgres and Redis.</p>
+  <div class="seq" id="seqMsg">
+    <div class="row-ctl"><button class="btn" type="button" data-play>Play</button><button class="btn" type="button" data-step>Step</button><span class="hint">Every arrow is a real call in apps/server.</span></div>
+    <figure class="sketch"><div class="scroll wide"><svg role="img" aria-label="Sequence of a chat message"></svg></div>
+      <figcaption>Fig. 3. <code>POST /messages</code> to <code>message.completed</code>.</figcaption></figure>
+    <ol class="detail"></ol>
+  </div>
+</section>
+
+<!-- 4 STORES -->
+<section id="stores">
+  <div class="sec-head"><span class="mark">4</span><h2>What Postgres keeps, what Redis carries</h2></div>
+  <p class="sec-intro">A simple rule: if losing it would lose a conversation, it lives in Postgres. Redis moves work and events between processes, and can be rebuilt. Even the per Bot run lock is a Postgres advisory lock, not a Redis one.</p>
+  <div class="tables">
+    <div>
+      <h3>Postgres</h3>
+      <p class="sub">Drizzle over postgres.js. Row level security by workspace. Secrets sealed with the master key.</p>
+      <table>
+        <thead><tr><th>Tables</th><th>Written when</th></tr></thead>
+        <tbody>
+          <tr><td><span class="mono">messages</span>, <span class="mono">chats</span></td><td>On post, with <code>seq</code> from <code>chat_seq</code>. A reply is an empty row at stream start, flushed every 250 ms.</td></tr>
+          <tr><td><span class="mono">runs</span>, <span class="mono">run_steps</span></td><td>At enqueue; then status, checkpoints and one row per step.</td></tr>
+          <tr><td><span class="mono">approvals</span></td><td>When <code>gated()</code> needs a human.</td></tr>
+          <tr><td><span class="mono">bot_memories</span></td><td>vector(1536) with an HNSW index, read at context time.</td></tr>
+          <tr><td><span class="mono">connectors</span>, <span class="mono">providers</span></td><td>Settings. Which tools and models a Bot may use.</td></tr>
+          <tr><td><span class="mono">coding_sessions</span>, <span class="mono">coding_session_events</span></td><td>One row per session, one per transcript event.</td></tr>
+          <tr><td><span class="mono">coder_accounts</span></td><td>Vendor sign ins, shared by coding agents and chat.</td></tr>
+          <tr><td><span class="mono">routines</span>, <span class="mono">routine_runs</span></td><td>Claimed with <code>FOR UPDATE SKIP LOCKED</code>.</td></tr>
+          <tr><td><span class="mono">devices</span>, <span class="mono">instance_keys</span></td><td>Phone pairing and the relay identity key.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <h3>Redis</h3>
+      <p class="sub">Prefix <span class="mono">openbots</span>. Without <code>REDIS_URL</code> it falls back to memory in a single process.</p>
+      <table>
+        <thead><tr><th>Key or channel</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td><span class="mono">runs</span> queue</td><td>Bot runs. Grouped by Bot, prioritized: interactive, normal, background.</td></tr>
+          <tr><td><span class="mono">:g:&lt;botId&gt;:lock</span></td><td>The custom group lock so one Bot runs one job at a time.</td></tr>
+          <tr><td><span class="mono">coders</span> queue</td><td>session, checkout, login, scan, reconcile, refresh, rescue.</td></tr>
+          <tr><td><span class="mono">openbots:events</span></td><td>Every WebSocket event. Each gateway subscribes and fans out.</td></tr>
+          <tr><td><span class="mono">openbots:run-control</span></td><td>Cancel a run on whichever worker holds it.</td></tr>
+          <tr><td><span class="mono">openbots:coder-control</span></td><td>Stop or steer a coding session.</td></tr>
+          <tr><td><span class="mono">openbots:mcp-control</span></td><td>Restart or drop a connector session.</td></tr>
+          <tr><td><span class="mono">openbots:rl:*</span></td><td>Token buckets (a Lua script) for auth, webhooks, GitHub App, pairing, push dedupe.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- 5 CODING -->
+<section id="coding">
+  <div class="sec-head"><span class="mark">5</span><h2>Spawning a coding agent</h2></div>
+  <div class="two" style="margin-bottom:28px">
+    <div class="prose">
+      <p class="definition"><span class="lab">Definition 5.1</span>A <em>coding session</em> is a vendor CLI (Claude Code, Codex or pi) running in a git worktree inside the owner's computer, driven by OpenBots and watched by a Bot run that waits for it.</p>
+      <p>The Bot does not write code itself. It calls the <code>coder</code> tool, which creates a session and parks the run. A separate <code>coders</code> worker starts the CLI over the computer agent's <code>/coder</code> socket, records every event, and turns the CLI's permission prompts into ordinary approvals. When the CLI finishes, the waiting run resumes with the commits, a diff and an optional pull request.</p>
+    </div>
+    <div class="callout"><b>Shared logins</b>The owner signs in to each vendor once. That login, stored in <code>coder_accounts</code>, powers coding sessions and also chat models: a Bot can answer with your Claude or Codex subscription because <code>subscriptionModel</code> streams through the same computer while tools still run on the server.<br><br><b>Commit identity</b>Commits are authored as <code>Bot name (OpenBots)</code> with the owner as co-author, unless the owner chooses to commit as themselves.</div>
+  </div>
+  <div class="seq" id="seqCoder">
+    <div class="row-ctl"><button class="btn" type="button" data-play>Play</button><button class="btn" type="button" data-step>Step</button><span class="hint">Two runs cooperate: the Bot run and the coder session.</span></div>
+    <figure class="sketch"><div class="scroll wide"><svg role="img" aria-label="Sequence of spawning a coding agent"></svg></div>
+      <figcaption>Fig. 4. From a <code>coder</code> tool call to a resumed Bot run.</figcaption></figure>
+    <ol class="detail"></ol>
+  </div>
+</section>
+
+<!-- 6 PHONES -->
+<section id="phones">
+  <div class="sec-head"><span class="mark">6</span><h2>Phones, the relay, and coming back</h2></div>
+  <div class="two">
+    <div class="prose">
+      <p>A self hosted server usually has no public address. So the server dials out to <code>openbots-relay</code> and holds a host link, but only while some device is paired. The phone connects to the same relay, and the relay pipes bytes between them. Inside that pipe is a Noise IK tunnel carrying ordinary HTTP and WebSocket traffic, encrypted end to end. The relay sees ciphertext.</p>
+      <p>Pushes take the same road. The push worker listens on <code>openbots:events</code>, encrypts a payload with the device's push key, and sends it up the host link. The relay forwards it to APNs, and the phone's notification extension decrypts it.</p>
+      <p>The relay itself runs as several Fly Machines. A Redis registry records which Machine owns each host; a Machine that gets a phone for a host it does not own answers with <code>fly-replay</code>.</p>
+    </div>
+    <div>
+      <h3 style="font-size:20px;margin-bottom:6px">When the app returns to the foreground</h3>
+      <ol class="ladder">
+        <li><span>Going to the background closes the socket. Encrypted pushes cover the gap.</span></li>
+        <li><span>On return, try direct URLs first, with a 2.5 s timeout.</span></li>
+        <li><span>Fall back to the relay tunnel.</span></li>
+        <li><span>Resubscribe to chats, then <code>GET /resync?since=seq</code> to fetch what was missed.</span></li>
+        <li><span>Drop duplicate deltas by number. Retry with backoff from 500 ms to 30 s; stale handshakes are ignored.</span></li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<!-- 7 DESIGN -->
+<section id="design">
+  <div class="sec-head"><span class="mark">7</span><h2>System design, as deployed</h2></div>
+  <p class="sec-intro">The default install is one Compose stack. The server never touches the Docker socket directly: <code>docker-guard</code> filters every call, and computers sit on their own network behind an iptables firewall. The relay is the only shared piece, and it never holds keys.</p>
+  <figure class="sketch">
+    <div class="scroll wide">
+    <svg viewBox="0 0 1000 520" role="img" aria-label="Deployment topology">
+      <path class="flow" d="M180 70 L180 18 L840 18 L840 40"/>
+      <path class="flow" d="M140 70 L140 46 L550 46 L550 120"/>
+      <path class="wire" d="M140 150 L140 190" marker-end="url(#ah)"/>
+      <path class="wire" d="M100 150 L100 165 L30 165 L30 325 L50 325" marker-end="url(#ah)"/>
+      <path class="wire" d="M230 100 L290 100" marker-end="url(#ah)"/>
+      <path class="wire" d="M370 130 L370 160" marker-end="url(#ah)"/>
+      <path class="wire" d="M370 220 L370 250" marker-end="url(#ah)"/>
+      <path class="wire" d="M450 280 L485 280" marker-end="url(#ah)"/>
+      <path class="wire" d="M140 460 L140 470"/>
+      <path class="flow" d="M615 170 L660 170 L660 360 L690 360"/>
+      <path class="wire" d="M760 200 L760 238" marker-end="url(#ah)"/>
+      <path class="wire" d="M820 265 L858 265" marker-end="url(#ah)"/>
+      <path class="flow" d="M920 240 L920 200"/>
+      <path class="flow" d="M690 452 L240 452 L240 150"/>
+
+      <g filter="url(#rough)">
+        <rect class="box zone" x="10" y="30" width="640" height="480"/>
+        <rect class="box zone" x="470" y="80" width="165" height="390"/>
+        <rect class="box" x="50" y="70" width="180" height="80"/>
+        <rect class="box" x="50" y="190" width="180" height="70"/>
+        <rect class="box" x="50" y="290" width="180" height="70"/>
+        <rect class="box soft" x="50" y="390" width="180" height="70"/>
+        <rect class="box" x="290" y="70" width="160" height="60"/>
+        <rect class="box" x="290" y="160" width="160" height="60"/>
+        <rect class="box soft" x="290" y="250" width="160" height="60"/>
+        <rect class="box" x="485" y="120" width="135" height="100"/>
+        <rect class="box" x="485" y="240" width="135" height="100"/>
+        <rect class="box soft" x="485" y="380" width="135" height="70"/>
+        <rect class="box zone" x="680" y="40" width="300" height="160"/>
+        <rect class="box" x="700" y="80" width="80" height="44"/><rect class="box" x="790" y="80" width="80" height="44"/><rect class="box" x="880" y="80" width="80" height="44"/>
+        <rect class="box soft" x="700" y="140" width="260" height="44"/>
+        <rect class="box" x="690" y="240" width="130" height="50"/>
+        <rect class="box" x="858" y="240" width="122" height="50"/>
+        <rect class="box" x="690" y="330" width="290" height="60"/>
+        <rect class="box" x="690" y="425" width="290" height="55"/>
+      </g>
+      <text class="t m" x="20" y="500">your host · docker compose · or one Fly Machine running the standalone image</text>
+      <text class="t b" x="64" y="96">openbots :3000</text><text class="t s" x="64" y="116">api · gateway · workers</text><text class="t m" x="64" y="138">ghcr.io/…/server</text>
+      <text class="t b" x="64" y="218">postgres</text><text class="t s" x="64" y="240">pgvector/pg16</text>
+      <text class="t b" x="64" y="318">redis</text><text class="t s" x="64" y="340">7 alpine · append only</text>
+      <text class="t b" x="64" y="418">/data volume</text><text class="t s" x="64" y="440">files · pg · redis</text>
+      <text class="t b" x="302" y="96">docker-guard</text><text class="t s" x="302" y="116">allowlists API calls</text>
+      <text class="t b" x="302" y="186">socket proxy</text><text class="t s" x="302" y="206">tecnativa</text>
+      <text class="t b" x="302" y="276">Docker engine</text><text class="t s" x="302" y="296">Docker Desktop · OrbStack</text>
+      <text class="t m" x="478" y="100">openbots-sbx</text><text class="t m" x="478" y="114">172.30.255.0/24</text>
+      <text class="t b" x="497" y="146">computer</text><text class="t s" x="497" y="166">owner A</text><text class="t m" x="497" y="190">agent · CLIs</text><text class="t m" x="497" y="206">Chromium · VNC</text>
+      <text class="t b" x="497" y="266">computer</text><text class="t s" x="497" y="286">owner B</text><text class="t m" x="497" y="310">agent · CLIs</text>
+      <text class="t b" x="497" y="406">sandbox-firewall</text><text class="t s" x="497" y="428">iptables egress</text>
+      <text class="t m" x="690" y="62">openbots-relay · Fly · :3200</text>
+      <text class="t m mid" x="740" y="106">machine</text><text class="t m mid" x="830" y="106">machine</text><text class="t m mid" x="920" y="106">machine</text>
+      <text class="t m" x="712" y="167">Redis: relay:host:&lt;id&gt; → node</text>
+      <text class="t b" x="702" y="270">APNs</text>
+      <text class="t b" x="870" y="270">iPhone</text>
+      <text class="t b" x="702" y="356">Model APIs</text><text class="t s" x="702" y="377">subscription traffic leaves from the computer</text>
+      <text class="t b" x="702" y="449">Browser · Mac app</text><text class="t s" x="702" y="469">same origin as the API</text>
+      <text class="t s" x="260" y="34">host link (outbound)</text>
+      <text class="t s" x="300" y="62">agent HTTP · WS /coder · /mcp/stdio</text>
+    </svg>
+    </div>
+    <figcaption>Fig. 5. One host, one relay. Dashed lines are long lived connections.</figcaption>
+  </figure>
+  <div class="callout" style="margin-top:22px"><b>Five images</b><code>server</code>, <code>computer</code>, <code>sandbox-firewall</code>, <code>relay</code> and <code>standalone</code>. On Fly, the <code>openbots</code> app runs <code>standalone</code>: server, Postgres, Redis and the computer in one container under s6, with a <code>/data</code> volume and a <code>/readyz</code> check. The server can also be split by <code>OPENBOTS_ROLE</code> into <code>api</code> and <code>worker</code> processes that share the same Postgres and Redis.</div>
+</section>
+
+<!-- 8 READING -->
+<section id="reading">
+  <div class="sec-head"><span class="mark">8</span><h2>A reading list</h2></div>
+  <p class="sec-intro">Read these in order and the figures above become code.</p>
+  <div class="scroll">
+  <table class="syllabus">
+    <thead><tr><th>#</th><th>File</th><th>What it shows</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td><span class="mono">apps/server/src/services/messages.ts</span></td><td>postUserMessage, seq, message.created</td></tr>
+      <tr><td>2</td><td><span class="mono">apps/server/src/services/runs.ts</span></td><td>takeOwnerMessage, steering, scheduleRun</td></tr>
+      <tr><td>3</td><td><span class="mono">apps/server/src/infra/queue-bullmq.ts</span></td><td>the per Bot group lock</td></tr>
+      <tr><td>4</td><td><span class="mono">apps/server/src/workers/runs.ts</span></td><td>processRun, context, tools</td></tr>
+      <tr><td>5</td><td><span class="mono">packages/agent/src/run/execute.ts</span></td><td>executeRun, gated(), checkpoints</td></tr>
+      <tr><td>6</td><td><span class="mono">apps/server/src/ws/gateway.ts</span></td><td>subscriptions and fan out</td></tr>
+      <tr><td>7</td><td><span class="mono">apps/server/src/services/coding-sessions.ts</span></td><td>startCodingSession</td></tr>
+      <tr><td>8</td><td><span class="mono">apps/server/src/services/coder-runner.ts</span></td><td>SessionRunner and the CLI stream</td></tr>
+      <tr><td>9</td><td><span class="mono">docs/RELAY_PROTOCOL.md</span></td><td>host links, streams, push frames</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<footer><span>OpenBots internals. Drawn from the code on main.</span><span>November 2026</span></footer>
+</div>
+
+<script>
+(function(){
+const NS="http://www.w3.org/2000/svg";
+const reduce=window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches;
+const sleep=ms=>new Promise(r=>setTimeout(r,reduce?Math.min(ms,120):ms));
+
+function travel(layer,path,reverse,speed){
+  return new Promise(res=>{
+    const L=path.getTotalLength();
+    const c=document.createElementNS(NS,"circle");
+    c.setAttribute("r","6");c.setAttribute("class","packet");layer.appendChild(c);
+    const put=k=>{const p=path.getPointAtLength((reverse?1-k:k)*L);c.setAttribute("cx",p.x);c.setAttribute("cy",p.y);};
+    if(reduce){put(1);setTimeout(()=>{c.remove();res();},200);return;}
+    const dur=260+L*(speed||1.5);const t0=performance.now();
+    (function f(t){const k=Math.min(1,(t-t0)/dur);const e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;put(e);
+      if(k<1)requestAnimationFrame(f);else{c.remove();res();}})(t0);
+  });
+}
+
+/* ---------- hero ticker ---------- */
+const evs=[
+  ["message.created","seq 412 · user"],["run.status","<b>queued</b>"],["bot.state","thinking"],["run.status","<b>running</b> · step 1"],
+  ["message.delta","#1 \"Looking at\""],["message.delta","#2 \" the failing\""],["run.step","tool web_search"],["message.delta","#3 \" test now.\""],
+  ["coding_session.updated","<b>starting</b> · claude"],["widget.updated","session card"],["coding_session.events","Edit apps/web/…"],
+  ["coding_session.events","Bash pnpm test"],["coding_session.updated","<b>completed</b> · 2 commits"],["run.status","<b>running</b> · resumed"],
+  ["message.delta","#4 \"Fixed. PR #33\""],["message.completed","seq 413"],["run.status","<b>completed</b>"],["bot.state","idle"]
+];
+const tk=document.getElementById("ticker");let ti=0,clock=0;
+function tickLine(){
+  const [e,d]=evs[ti%evs.length];ti++;clock+=reduce?0:Math.round(80+Math.random()*420);
+  const li=document.createElement("li");li.className="new";
+  li.innerHTML='<span class="t">+'+(clock/1000).toFixed(2)+'s</span><span class="ev">'+e+' <span style="color:var(--ink-soft)">'+d+'</span></span>';
+  tk.appendChild(li);while(tk.children.length>11)tk.removeChild(tk.firstChild);
+  if(ti%evs.length===0)clock=0;
+}
+for(let i=0;i<11;i++)tickLine();
+if(!reduce)setInterval(tickLine,1100);
+
+/* ---------- figure 1 ---------- */
+const S={
+ web:{title:"Chat from the web",steps:[
+  ["w-web-api",0,"n-api","POST /api/v1/chats/:id/messages"],
+  ["w-api-pg",0,"n-pg","INSERT the message. Its seq comes from chats.chat_seq."],
+  ["w-api-pg",0,"n-pg","Lock runs:<botId>, INSERT a runs row (queued)."],
+  ["w-api-redis",0,"n-redis","Enqueue on runs with group = botId, interactive priority."],
+  ["w-redis-wk",0,"n-workers","A run worker claims it. One run per Bot at a time."],
+  ["w-wk-pg",0,"n-pg","Load 40 messages, memories and tools."],
+  ["w-wk-models",0,"n-models","streamText, up to 40 steps."],
+  ["w-wk-models",1,"n-workers","Tokens and tool calls stream back."],
+  ["w-wk-pg",0,"n-pg","Flush the reply row every 250 ms."],
+  ["w-redis-wk",1,"n-redis","PUBLISH message.delta on openbots:events."],
+  ["w-redis-gw",0,"n-gw","Every gateway hears it."],
+  ["w-gw-web",0,"n-web","Sent to sockets subscribed to the chat."]]},
+ ios:{title:"Chat from an iPhone",steps:[
+  ["w-ios-api",0,"n-api","HTTP inside a Noise IK tunnel through the relay."],
+  ["w-api-pg",0,"n-pg","INSERT the message, lock the Bot, INSERT a run."],
+  ["w-api-redis",0,"n-redis","Enqueue on runs."],
+  ["w-redis-wk",0,"n-workers","A run worker claims it."],
+  ["w-wk-models",0,"n-models","The model streams a reply."],
+  ["w-wk-models",1,"n-workers","Deltas come back."],
+  ["w-redis-wk",1,"n-redis","PUBLISH message.delta."],
+  ["w-redis-gw",0,"n-gw","The gateway hears it."],
+  ["w-gw-ios",0,"n-ios","Back through the tunnel. If the app is asleep, the push worker sends an encrypted APNs push instead."]]},
+ hook:{title:"GitHub webhook",steps:[
+  ["w-hook-ing",0,"n-ingress","POST /hooks/:botHandle/:slug"],
+  ["w-ing-redis",0,"n-redis","IP allowlist, token, GitHub HMAC, then a token bucket in openbots:rl:*."],
+  ["w-ing-redis",0,"n-redis","Enqueue on runs with trigger webhook, normal priority."],
+  ["w-redis-wk",0,"n-workers","A run worker claims it."],
+  ["w-wk-models",0,"n-models","The Bot reads the payload and decides what to do."],
+  ["w-wk-pg",0,"n-pg","Its reply lands in the Bot's inbox chat."],
+  ["w-redis-wk",1,"n-redis","PUBLISH message.delta."],
+  ["w-redis-gw",0,"n-gw","The gateway hears it."],
+  ["w-gw-web",0,"n-web","Anyone watching the inbox sees it live."]]},
+ routine:{title:"Routine fires",steps:[
+  ["w-sched-redis",0,"n-redis","Every 30 s the scheduler claims due routines (FOR UPDATE SKIP LOCKED) and enqueues a background run."],
+  ["w-redis-wk",0,"n-workers","It waits behind interactive work, then a worker claims it."],
+  ["w-wk-models",0,"n-models","The routine's prompt goes to the model."],
+  ["w-wk-pg",0,"n-pg","routine_runs and the reply are stored."],
+  ["w-redis-wk",1,"n-redis","PUBLISH message.completed."],
+  ["w-redis-gw",0,"n-gw","The gateway hears it."],
+  ["w-gw-web",0,"n-web","A new message appears, and a push goes to paired phones."]]},
+ coder:{title:"Spawn a coding agent",steps:[
+  ["w-web-api",0,"n-api","\"Fix the failing test in openbots/web.\""],
+  ["w-api-redis",0,"n-redis","Message stored, run enqueued."],
+  ["w-redis-wk",0,"n-workers","A run worker claims it."],
+  ["w-wk-models",0,"n-models","The model calls the coder tool."],
+  ["w-wk-pg",0,"n-pg","INSERT coding_sessions. The Bot run goes to waiting."],
+  ["w-redis-wk",1,"n-redis","Enqueue a coders session job."],
+  ["w-redis-wk",0,"n-workers","SessionRunner claims it under the coder-owner lock."],
+  ["w-wk-comp",0,"n-comp","WS /coder: start Claude Code in a worktree."],
+  ["w-comp-models",0,"n-models","The CLI uses the owner's own subscription."],
+  ["w-wk-comp",1,"n-workers","Events stream back, keys scrubbed."],
+  ["w-wk-pg",0,"n-pg","INSERT coding_session_events."],
+  ["w-redis-gw",0,"n-gw","coding_session.events and widget.updated."],
+  ["w-gw-web",0,"n-web","The session card updates live. On finish, the Bot run resumes."]]}
+};
+const sys=document.getElementById("sys"),pk=document.getElementById("pk");
+const logList=document.getElementById("logList"),logTitle=document.getElementById("logTitle");
+let cur="web",token=0;
+function renderLog(k,on){
+  logTitle.textContent=S[k].title;logList.innerHTML="";
+  S[k].steps.forEach((s,i)=>{const li=document.createElement("li");li.textContent=s[3];if(on)li.className="on";logList.appendChild(li);});
+}
+async function play(k){
+  const my=++token;cur=k;renderLog(k,false);
+  sys.querySelectorAll(".lit").forEach(n=>n.classList.remove("lit"));
+  const items=logList.children;
+  for(let i=0;i<S[k].steps.length;i++){
+    const [w,rev,node]=S[k].steps[i];
+    if(my!==token)return;
+    [...items].forEach(x=>x.classList.remove("now"));items[i].classList.add("on","now");
+    const p=document.getElementById(w);p.classList.add("hot");
+    await travel(pk,p,!!rev,1.4);
+    p.classList.remove("hot");
+    if(my!==token)return;
+    sys.querySelectorAll(".lit").forEach(n=>n.classList.remove("lit"));
+    const n=document.getElementById(node);if(n)n.classList.add("lit");
+    await sleep(420);
+  }
+  if(my===token){[...items].forEach(x=>x.classList.remove("now"));await sleep(900);sys.querySelectorAll(".lit").forEach(n=>n.classList.remove("lit"));}
+}
+renderLog("web",true);
+document.querySelectorAll("[data-scn]").forEach(b=>b.addEventListener("click",()=>{
+  document.querySelectorAll("[data-scn]").forEach(x=>x.setAttribute("aria-pressed",x===b?"true":"false"));
+  play(b.dataset.scn);
+}));
+document.getElementById("replay").addEventListener("click",()=>play(cur));
+
+/* ---------- figure 2: loop ---------- */
+(function(){
+  const lay=document.getElementById("lpk"),cnt=document.getElementById("stepCount");
+  const pin=document.getElementById("lp-in"),pr=document.getElementById("lp-round"),po=document.getElementById("lp-out");
+  if(reduce)return;
+  let visible=false;
+  new IntersectionObserver(es=>{visible=es[0].isIntersecting;}).observe(document.getElementById("loopFig"));
+  (async function cycle(){
+    while(true){
+      if(!visible){await sleep(500);continue;}
+      cnt.textContent="step 1 / 40";
+      await travel(lay,pin,false,3);
+      const rounds=2+Math.floor(Math.random()*2);
+      for(let r=0;r<rounds;r++){await travel(lay,pr,false,3.2);cnt.textContent="step "+(r+2)+" / 40";}
+      await travel(lay,po,false,3);
+      await sleep(900);
+    }
+  })();
+})();
+
+/* ---------- sequence figures ---------- */
+function Seq(root,lanes,steps){
+  const svg=root.querySelector("svg"),det=root.querySelector("ol.detail");
+  const W=1000,top=70,dy=40,m=80,H=top+steps.length*dy+30;
+  svg.setAttribute("viewBox","0 0 "+W+" "+H);
+  const X=i=>m+i*((W-2*m)/(lanes.length-1));
+  const el=(t,a,p)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);(p||svg).appendChild(e);return e;};
+  lanes.forEach((l,i)=>{
+    el("line",{x1:X(i),x2:X(i),y1:44,y2:H-10,class:"life"});
+    const g=el("g",{filter:"url(#rough)"});el("rect",{x:X(i)-62,y:12,width:124,height:32,class:"lane-h"},g);
+    const t=el("text",{x:X(i),y:33,class:"t b mid"});t.textContent=l;
+  });
+  const msgs=[],paths=[];
+  steps.forEach((s,i)=>{
+    const [a,b,lab]=s,y=top+i*dy+14;
+    const g=el("g",{class:"msg"});
+    let d;
+    if(a===b){d="M"+X(a)+" "+(y-8)+" C "+(X(a)+60)+" "+(y-10)+", "+(X(a)+60)+" "+(y+12)+", "+(X(a)+4)+" "+(y+10);}
+    else{const dir=b>a?1:-1;d="M"+X(a)+" "+y+" L"+(X(b)-dir*3)+" "+y;}
+    const p=el("path",{d:d,class:"l","marker-end":"url(#ahi)"},g);paths.push(p);
+    const n=el("text",{x:12,y:y+4,class:"num"},g);n.textContent=(i+1)+".";
+    const lx=a===b?X(a)+66:(X(a)+X(b))/2;
+    const t=el("text",{x:lx,y:a===b?y+5:y-7,class:"lbl"},g);if(a===b)t.style.textAnchor="start";t.textContent=lab;
+    msgs.push(g);
+    const li=document.createElement("li");li.innerHTML="<b></b><span></span>";li.querySelector("b").textContent=lab;li.querySelector("span").textContent=s[3]||"";det.appendChild(li);
+  });
+  const layer=el("g",{});
+  const lis=det.children;
+  let tok=0,at=-1;
+  function mark(i){msgs.forEach((g,j)=>{g.classList.toggle("dim",j>i);g.classList.toggle("now",j===i);});
+    [...lis].forEach((l,j)=>l.classList.toggle("now",j===i));
+    paths.forEach((p,j)=>p.setAttribute("marker-end",j===i?"url(#ahp)":"url(#ahi)"));}
+  async function stepTo(i,my){
+    msgs[i].classList.remove("dim");msgs[i].classList.add("now");
+    mark(i-1);msgs[i].classList.remove("dim");
+    await travel(layer,paths[i],false,1.1);
+    if(my!==tok)return false;mark(i);at=i;return true;
+  }
+  async function playAll(){
+    const my=++tok;at=-1;mark(-1);
+    for(let i=0;i<steps.length;i++){if(!(await stepTo(i,my)))return;await sleep(650);if(my!==tok)return;}
+    await sleep(600);if(my===tok){mark(steps.length);msgs.forEach(g=>g.classList.remove("now"));}
+  }
+  root.querySelector("[data-play]").addEventListener("click",playAll);
+  root.querySelector("[data-step]").addEventListener("click",()=>{const my=++tok;const n=at+1>=steps.length?0:at+1;if(n===0)mark(-1);stepTo(n,my);});
+  let auto=false;
+  new IntersectionObserver(es=>{if(es[0].isIntersecting&&!auto&&!reduce){auto=true;playAll();}},{threshold:.35}).observe(svg);
+}
+
+Seq(document.getElementById("seqMsg"),["Client","API","Postgres","Redis","Run worker","Model"],[
+ [0,1,"POST /messages","Web, Mac or phone. Phones send it as HTTP inside the relay tunnel."],
+ [1,2,"INSERT messages","postUserMessage stores it with seq from chats.chat_seq, so clients can order and resync."],
+ [1,3,"PUBLISH message.created","Every open socket on the chat sees the message at once."],
+ [1,2,"lock runs:<botId>","takeOwnerMessage locks the Bot. An active run is steered; a pending question is answered; otherwise a runs row is inserted."],
+ [1,3,"add job to runs","scheduleRun groups by botId so a Bot never runs twice at once. Chat is interactive priority; routines are background."],
+ [3,4,"job claimed","One of eight concurrent run workers takes it."],
+ [4,2,"load context","Model, the last 40 messages, memories by vector search, builtin and connector tools."],
+ [4,5,"streamText step 1","One AI SDK call that can run up to 40 steps."],
+ [5,4,"tool call","gated() checks policy and may park the run for an approval."],
+ [4,4,"run tool, checkpoint","The run state is saved so another worker can take over after a crash."],
+ [4,5,"step 2 with result","prepareStep first drains anything the user sent meanwhile."],
+ [5,4,"text deltas","Tokens stream in."],
+ [4,3,"PUBLISH message.delta","Numbered, so clients drop duplicates after a reconnect."],
+ [3,0,"delta via WS gateway","Every API instance relays openbots:events to its subscribed sockets."],
+ [4,2,"flush every 250 ms","appendPart folds deltas into the reply row. A refresh mid reply shows the text so far."],
+ [4,3,"message.completed","finalize marks the run completed and publishes the final message."]
+]);
+
+Seq(document.getElementById("seqCoder"),["Bot run","Sessions","Postgres","Redis","Coder worker","Computer","CLI"],[
+ [0,1,"coder({ repo, task })","The model calls the coder tool from inside its normal loop."],
+ [1,2,"policy, allowlist","The Bot must be allowed to code on this repo, and the owner signed in to the vendor. If not, a sign in starts."],
+ [1,5,"create worktree","A git worktree is made from the repo checkout inside the owner's computer."],
+ [1,2,"INSERT coding_sessions","Status queued."],
+ [1,0,"widget, run waiting","The chat shows a live session card. The Bot run parks."],
+ [1,3,"enqueue coders","A session job on the coders queue, eight at a time."],
+ [3,4,"job claimed","SessionRunner picks it up."],
+ [4,2,"lock coder-owner","Under an advisory lock: queued to starting, within the owner's session cap."],
+ [4,5,"WS /coder spawn","The computer agent starts the CLI as user coder in the worktree."],
+ [5,6,"claude · codex · pi","Pinned versions in the computer image, using the owner's own login."],
+ [6,5,"stdout events","Parsed by the vendor adapter. Keys are scrubbed."],
+ [5,4,"stream frames","Back over the same socket."],
+ [4,2,"INSERT events","coding_session_events: a durable transcript that survives reloads and restarts."],
+ [4,3,"PUBLISH events","coding_session.events and widget.updated move the card in chat."],
+ [6,4,"permission prompt","Through a permission MCP relay. It becomes a normal OpenBots approval."],
+ [4,5,"commit, push, PR","Authored as the Bot with the owner as co-author, or as the owner if configured."],
+ [4,0,"resume with result","Changed files, commits, a diff artifact and the PR link. The Bot run continues its loop."]
+]);
+})();
+</script>
+
+</body>
+</html>

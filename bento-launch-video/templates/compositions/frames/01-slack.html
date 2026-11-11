@@ -1,0 +1,341 @@
+<!doctype html>
+<html
+  lang="en"
+  data-composition-variables='[
+    { "id": "layout", "type": "enum", "role": "content", "label": "Layout", "description": "wide for 16:9 hosts, tall for 9:16 hosts.", "default": "wide", "options": [{ "value": "wide", "label": "Wide" }, { "value": "tall", "label": "Tall" }] }
+  ]'
+>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Slack scene</title>
+  </head>
+  <body>
+    <template>
+      <style>
+        #root {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          background: #0e0d0b;
+          font-family: Lato, "Helvetica Neue", Arial, sans-serif;
+          color: #d1d2d3;
+          font-size: 15px;
+          line-height: 1.4;
+        }
+        #root * { box-sizing: border-box; margin: 0; padding: 0; }
+        #sl-world { position: absolute; inset: 0; transform-origin: 50% 50%; will-change: transform; }
+        .sl-bg {
+          position: absolute; inset: -800px;
+          background:
+            radial-gradient(900px 700px at 28% 22%, rgba(255, 138, 61, 0.16), transparent 70%),
+            radial-gradient(900px 700px at 78% 84%, rgba(77, 163, 255, 0.1), transparent 70%),
+            #0e0d0b;
+        }
+        .sl-grid {
+          position: absolute; inset: -800px;
+          background-image:
+            linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+          background-size: 80px 80px;
+        }
+        .win {
+          position: absolute; left: 140px; top: 70px; width: 1640px; height: 940px;
+          border-radius: 14px; overflow: hidden; background: #1a1d21;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          box-shadow: 0 40px 90px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(0, 0, 0, 0.6);
+          will-change: transform, opacity;
+        }
+        #root[data-layout="tall"] .win { left: 50px; top: 520px; width: 980px; height: 880px; }
+        #root[data-layout="tall"] { font-size: 17px; }
+        .tb { position: absolute; left: 0; right: 0; top: 0; height: 44px; background: #121417; border-bottom: 1px solid #2b2d31; }
+        .tb i { position: absolute; top: 15px; width: 13px; height: 13px; border-radius: 50%; }
+        .tb i:nth-child(1) { left: 18px; background: #ff5f57; }
+        .tb i:nth-child(2) { left: 39px; background: #febc2e; }
+        .tb i:nth-child(3) { left: 60px; background: #28c840; }
+        .tb span { position: absolute; left: 0; right: 0; top: 12px; text-align: center; font-size: 13px; color: #a8aaae; }
+        .topbar { position: absolute; left: 0; right: 0; top: 44px; height: 48px; background: #1a1d21; border-bottom: 1px solid #2b2d31; }
+        .search {
+          position: absolute; left: 50%; top: 9px; width: 56%; height: 30px; margin-left: -28%;
+          border-radius: 6px; background: #2a2d31; border: 1px solid #3a3d41; color: #c5c7cb;
+          font-size: 13px; padding-left: 34px; line-height: 28px;
+        }
+        .search::before { content: ""; position: absolute; left: 11px; top: 7px; width: 11px; height: 11px; border: 2px solid #a4a6ab; border-radius: 50%; }
+        .search::after { content: ""; position: absolute; left: 21px; top: 17px; width: 6px; height: 2px; background: #a4a6ab; transform: rotate(45deg); }
+        .nav-arrows { position: absolute; left: 90px; top: 15px; color: #9a9ca1; font-size: 16px; letter-spacing: 14px; }
+        .body { position: absolute; left: 0; right: 0; top: 92px; bottom: 0; }
+        .side { position: absolute; left: 0; top: 0; bottom: 0; width: 260px; background: #19171d; border-right: 1px solid #2b2d31; padding-top: 10px; }
+        #root[data-layout="tall"] .side { display: none; }
+        .ws { height: 48px; padding: 0 16px; font-weight: 700; font-size: 18px; color: #fff; line-height: 48px; border-bottom: 1px solid #2b2d31; margin-bottom: 8px; }
+        .ws::after { content: ""; display: inline-block; margin-left: 8px; width: 7px; height: 7px; border-right: 2px solid #c5c7cb; border-bottom: 2px solid #c5c7cb; transform: translateY(-4px) rotate(45deg); }
+        .srow { height: 30px; line-height: 30px; padding: 0 16px 0 20px; color: #b8babd; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-radius: 6px; margin: 0 8px; }
+        .srow.sec { margin-top: 14px; color: #9ea0a4; font-size: 14px; }
+        .srow.sec::before { content: ""; display: inline-block; margin-right: 8px; width: 6px; height: 6px; border-right: 2px solid #9ea0a4; border-bottom: 2px solid #9ea0a4; transform: translateY(-3px) rotate(45deg); }
+        .srow .h { color: #b8babd; margin-right: 7px; }
+        .srow.active { background: #1164a3; color: #fff; }
+        .srow.active .h { color: #fff; }
+        .srow .dmdot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #2bac76; margin-right: 10px; }
+        .main { position: absolute; left: 260px; right: 0; top: 0; bottom: 0; overflow: hidden; }
+        #root[data-layout="tall"] .main { left: 0; }
+        .chh { position: absolute; left: 0; right: 0; top: 0; height: 56px; border-bottom: 1px solid #2b2d31; padding: 0 20px; line-height: 56px; font-weight: 700; font-size: 18px; color: #fff; }
+        .chh .h { color: #d1d2d3; margin-right: 4px; }
+        .chh .star { color: #b8babd; margin-left: 10px; font-weight: 400; font-size: 16px; }
+        .chh .members { position: absolute; right: 20px; top: 13px; height: 30px; line-height: 28px; border: 1px solid #3a3d41; border-radius: 6px; padding: 0 10px 0 6px; font-size: 13px; font-weight: 400; color: #c5c7cb; }
+        .members i { display: inline-block; width: 18px; height: 18px; border-radius: 4px; vertical-align: -4px; margin-right: 3px; }
+        .msgs { position: absolute; left: 0; right: 0; top: 56px; bottom: 136px; overflow: hidden; }
+        .list { position: absolute; left: 0; right: 0; bottom: 6px; will-change: transform; }
+        .intro { padding: 0 20px 18px; }
+        .ih { font-size: 26px; font-weight: 900; color: #fff; margin-bottom: 6px; }
+        .ih .h { color: #d1d2d3; margin-right: 4px; }
+        .it { color: #d1d2d3; }
+        .day { text-align: center; height: 44px; position: relative; }
+        .day::before { content: ""; position: absolute; left: 20px; right: 20px; top: 15px; height: 1px; background: #2b2d31; }
+        .day span { position: relative; display: inline-block; background: #1a1d21; border: 1px solid #3a3d41; border-radius: 20px; padding: 0 14px; height: 30px; line-height: 28px; font-size: 13px; font-weight: 700; color: #d1d2d3; }
+        .m { position: relative; height: 84px; padding: 10px 20px 0 76px; }
+        .m .av { position: absolute; left: 20px; top: 10px; width: 40px; height: 40px; border-radius: 8px; color: #fff; font-weight: 700; font-size: 15px; text-align: center; line-height: 40px; overflow: hidden; }
+        .m .av img { width: 100%; height: 100%; display: block; }
+        .m .nm { font-weight: 900; color: #fff; font-size: 15px; }
+        .m .ts { color: #b8babd; font-size: 12px; margin-left: 8px; font-weight: 400; }
+        .m .tx { color: #d1d2d3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        #root[data-layout="tall"] .m { height: 92px; }
+        #root[data-layout="tall"] .m .nm { font-size: 17px; }
+        .mention { display: inline-block; background: rgba(29, 155, 209, 0.16); color: #36aee6; border-radius: 3px; padding: 0 3px; line-height: 1.3; }
+        .replies { margin-top: 6px; height: 24px; line-height: 24px; font-size: 13px; color: #36aee6; font-weight: 700; will-change: transform, opacity; }
+        .replies img { width: 20px; height: 20px; border-radius: 4px; vertical-align: -5px; margin-right: 8px; }
+        .replies em { font-style: normal; font-weight: 400; color: #c5c7cb; margin-left: 8px; }
+        .composer { position: absolute; left: 20px; right: 20px; bottom: 22px; height: 104px; border: 1px solid #565856; border-radius: 8px; background: #222529; }
+        .ctool { position: absolute; left: 0; right: 0; top: 0; height: 36px; border-bottom: 1px solid #2b2d31; padding: 0 10px; line-height: 36px; color: #b8babd; font-size: 14px; }
+        .ctool b, .ctool i, .ctool s, .ctool u { display: inline-block; width: 26px; text-align: center; font-size: 14px; }
+        .ctool u { text-decoration: none; }
+        .ctool span.sep { display: inline-block; width: 1px; height: 16px; background: #3a3d41; vertical-align: -3px; margin: 0 6px; }
+        .cinput { position: absolute; left: 14px; right: 70px; top: 44px; height: 28px; line-height: 28px; font-size: 15px; color: #d1d2d3; white-space: nowrap; overflow: hidden; }
+        #root[data-layout="tall"] .cinput { font-size: 17px; }
+        .cinput .ph { color: #a8aaae; }
+        .caret { display: inline-block; width: 2px; height: 18px; background: #d1d2d3; vertical-align: -3px; margin-left: 1px; }
+        .cbottom { position: absolute; left: 10px; bottom: 6px; color: #b8babd; font-size: 16px; letter-spacing: 12px; }
+        .send { position: absolute; right: 10px; bottom: 8px; width: 34px; height: 30px; border-radius: 4px; background: #2a2d31; }
+        .send.on { background: #007a5a; }
+        .send::after { content: ""; position: absolute; left: 11px; top: 8px; width: 0; height: 0; border-top: 7px solid transparent; border-bottom: 7px solid transparent; border-left: 12px solid #8d8f94; }
+        .send.on::after { border-left-color: #fff; }
+        .ac { position: absolute; left: 20px; bottom: 134px; width: 360px; background: #222529; border: 1px solid #3a3d41; border-radius: 8px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5); padding: 6px; will-change: transform, opacity; }
+        .ac .lbl { font-size: 12px; color: #b8babd; padding: 4px 10px 6px; font-weight: 700; }
+        .ac .row { height: 40px; border-radius: 6px; background: #1164a3; color: #fff; padding: 0 10px; line-height: 40px; font-weight: 700; }
+        .ac .row img { width: 24px; height: 24px; border-radius: 4px; vertical-align: -7px; margin-right: 10px; }
+        .badge { display: inline-block; background: #3a3d41; color: #e6e7e9; font-size: 10px; font-weight: 700; border-radius: 3px; padding: 0 4px; height: 16px; line-height: 16px; margin-left: 6px; vertical-align: 2px; }
+        .thread { position: absolute; top: 0; bottom: 0; right: 0; width: 440px; background: #1a1d21; border-left: 1px solid #2b2d31; will-change: transform; }
+        #root[data-layout="tall"] .thread { width: 100%; border-left: 0; }
+        .th { height: 56px; border-bottom: 1px solid #2b2d31; padding: 0 20px; line-height: 56px; font-weight: 900; color: #fff; font-size: 16px; }
+        .th em { font-style: normal; font-weight: 400; color: #c5c7cb; font-size: 13px; margin-left: 10px; }
+        .th .x { position: absolute; right: 20px; color: #b8babd; font-weight: 400; }
+        .thread .orig { position: absolute; left: 0; right: 0; top: 56px; height: 120px; padding-top: 18px; }
+        .thread .orig .tx { white-space: normal; }
+        .rdiv { position: absolute; left: 20px; right: 20px; top: 176px; height: 36px; line-height: 36px; font-size: 13px; color: #c5c7cb; }
+        .rdiv::after { content: ""; position: absolute; left: 64px; right: 0; top: 18px; height: 1px; background: #2b2d31; }
+        .reply { position: absolute; left: 0; right: 0; top: 212px; height: 140px; padding-top: 6px; transform-origin: 24px 24px; will-change: transform, opacity; }
+        .reply .tx { white-space: normal; overflow: visible; line-height: 1.45; }
+        .reply .tx b { color: #fff; font-weight: 900; }
+        .btn { display: inline-block; margin-top: 10px; height: 32px; line-height: 30px; padding: 0 12px; border: 1px solid #565856; border-radius: 4px; font-weight: 700; font-size: 13px; color: #d1d2d3; background: #1a1d21; }
+        .mark { display: inline-block; background: url("../../assets/logo.svg") center / cover no-repeat; border-radius: 4px; vertical-align: -4px; margin-right: 8px; }
+        .mark-18 { width: 18px; height: 18px; }
+        .mark-20 { width: 20px; height: 20px; vertical-align: -5px; }
+        .mark-24 { width: 24px; height: 24px; vertical-align: -7px; margin-right: 10px; }
+        .av.mark { margin: 0; border-radius: 8px; }
+      </style>
+
+      <div id="root" data-composition-id="slack" data-width="1920" data-height="1080">
+        <div id="sl-world">
+          <div class="sl-bg" data-layout-ignore></div>
+          <div class="sl-grid" data-layout-ignore></div>
+          <div class="win" id="sl-win">
+            <div class="tb"><i></i><i></i><i></i><span>Acme · Slack</span></div>
+            <div class="topbar">
+              <div class="nav-arrows">‹ ›</div>
+              <div class="search">Search Acme</div>
+            </div>
+            <div class="body">
+              <div class="side">
+                <div class="ws">Acme</div>
+                <div class="srow">Threads</div>
+                <div class="srow">Mentions &amp; reactions</div>
+                <div class="srow">Drafts &amp; sent</div>
+                <div class="srow sec">Channels</div>
+                <div class="srow"><span class="h">#</span>general</div>
+                <div class="srow"><span class="h">#</span>engineering</div>
+                <div class="srow active"><span class="h">#</span>product</div>
+                <div class="srow"><span class="h">#</span>design</div>
+                <div class="srow"><span class="h">#</span>launches</div>
+                <div class="srow sec">Direct messages</div>
+                <div class="srow"><span class="dmdot"></span>Priya Nair</div>
+                <div class="srow"><span class="dmdot"></span>Marcus Lee</div>
+                <div class="srow sec">Apps</div>
+                <div class="srow"><span class="mark mark-18"></span>Bento</div>
+              </div>
+              <div class="main">
+                <div class="chh" id="sl-chh">
+                  <span class="h">#</span>product<span class="star">☆</span>
+                  <span class="members" id="sl-members"><i style="background:#7c5cbf"></i><i style="background:#2bac76"></i><i style="background:#e8912d"></i>14</span>
+                </div>
+                <div class="msgs" id="sl-msgs">
+                  <div class="list" id="sl-list">
+                    <div class="intro"><div class="ih"><span class="h">#</span>product</div><div class="it">Product updates and requests. Tag <span class="mention">@bento</span> to turn a request into a card.</div></div>
+                    <div class="day"><span>Today</span></div>
+                    <div class="m">
+                      <div class="av" style="background:#5a3d9e">PN</div>
+                      <div class="nm">Priya Nair<span class="ts">9:41 AM</span></div>
+                      <div class="tx">Settings page feedback from the beta: three people asked for dark mode this week.</div>
+                    </div>
+                    <div class="m">
+                      <div class="av" style="background:#1e7550">ML</div>
+                      <div class="nm">Marcus Lee<span class="ts">9:43 AM</span></div>
+                      <div class="tx">Agreed, it is the top request. Who is picking it up?</div>
+                    </div>
+                    <div class="m" id="sl-m3">
+                      <div class="av" style="background:#a04f08">JR</div>
+                      <div class="nm">Jordan Reyes<span class="ts">9:44 AM</span></div>
+                      <div class="tx"><span class="mention">@bento</span> add dark mode to the settings page</div>
+                      <div class="replies" id="sl-replies"><span class="mark mark-20"></span>1 reply<em>Just now</em></div>
+                    </div>
+                  </div>
+                </div>
+                <div class="ac" id="sl-ac" data-layout-ignore>
+                  <div class="lbl">Members and apps matching "@be"</div>
+                  <div class="row"><span class="mark mark-24"></span>Bento<span class="badge">APP</span></div>
+                </div>
+                <div class="composer" id="sl-composer">
+                  <div class="ctool"><b>B</b><i>I</i><s>S</s><span class="sep"></span><u>&lt;&gt;</u><u>“</u><u>≡</u></div>
+                  <div class="cinput"><span id="sl-text"><span class="ph">Message #product</span></span><span class="caret" id="sl-caret"></span></div>
+                  <div class="cbottom">+ Aa @ ▸</div>
+                  <div class="send" id="sl-send"></div>
+                </div>
+                <div class="thread" id="sl-thread" data-layout-allow-overflow>
+                  <div class="th">Thread<em># product</em><span class="x">✕</span></div>
+                  <div class="m orig">
+                    <div class="av" style="background:#a04f08">JR</div>
+                    <div class="nm">Jordan Reyes<span class="ts">9:44 AM</span></div>
+                    <div class="tx"><span class="mention">@bento</span> add dark mode to the settings page</div>
+                  </div>
+                  <div class="rdiv">1 reply</div>
+                  <div class="m reply" id="sl-reply">
+                    <div class="av mark mark-40"></div>
+                    <div class="nm">Bento<span class="badge">APP</span><span class="ts">9:44 AM</span></div>
+                    <div class="tx">Created <b>Dark mode for the settings page</b> in <b>bento-www</b>.</div>
+                    <div class="btn">Open card</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <script>
+        (function () {
+          var vars = window.__hyperframes && window.__hyperframes.getVariables ? window.__hyperframes.getVariables() : {};
+          var layout = vars.layout === "tall" ? "tall" : "wide";
+          var root = document.getElementById("root");
+          root.setAttribute("data-layout", layout);
+
+          var FULL = "@bento add dark mode to the settings page";
+          var T0 = 1.0;
+          var times = [];
+          var t = T0;
+          for (var i = 0; i < FULL.length; i++) {
+            var dt = 0.05 + ((i * 7) % 4) * 0.012;
+            if (FULL[i] === " ") dt += 0.11;
+            if (i === 6) dt += 0.4;
+            t += dt;
+            times.push(t);
+          }
+          var T_TYPED = times[times.length - 1];
+          var T_SEND = T_TYPED + 0.55;
+          var T_THREAD = T_SEND + 0.7;
+          var T_REPLY = T_THREAD + 0.8;
+          var T_ZOOM = T_REPLY + 0.7;
+          var TOTAL = 10.1;
+
+          var textEl = document.getElementById("sl-text");
+          var sendEl = document.getElementById("sl-send");
+          var caretEl = document.getElementById("sl-caret");
+          var listEl = document.getElementById("sl-list");
+          var m3 = document.getElementById("sl-m3");
+          var replies = document.getElementById("sl-replies");
+          var ac = document.getElementById("sl-ac");
+          var thread = document.getElementById("sl-thread");
+          var reply = document.getElementById("sl-reply");
+          var world = document.getElementById("sl-world");
+          var win = document.getElementById("sl-win");
+
+          function esc(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;"); }
+          function typedCount(time) {
+            if (time >= T_SEND) return 0;
+            for (var k = times.length - 1; k >= 0; k--) { if (time >= times[k]) return k + 1; }
+            return 0;
+          }
+          var lastN = -1;
+          function renderComposer(time) {
+            var n = typedCount(time);
+            if (n === lastN) return;
+            lastN = n;
+            if (n === 0) {
+              textEl.innerHTML = '<span class="ph">Message #product</span>';
+              sendEl.className = "send";
+              return;
+            }
+            var s = FULL.slice(0, n);
+            textEl.innerHTML = n >= 7 ? '<span class="mention">@bento</span>' + esc(s.slice(6)) : esc(s);
+            sendEl.className = "send on";
+          }
+
+          var M3_H = layout === "tall" ? 122 : 114;
+          var paneW = layout === "tall" ? 980 : 440;
+          var winLeft = layout === "tall" ? 50 : 140;
+          var winTop = layout === "tall" ? 520 : 70;
+          var winW = layout === "tall" ? 980 : 1640;
+          var canvasW = layout === "tall" ? 1080 : 1920;
+          var canvasH = layout === "tall" ? 1920 : 1080;
+          var replyCx = winLeft + winW - paneW / 2;
+          var replyCy = winTop + 44 + 48 + 56 + 212 + (layout === "tall" ? 62 : 110);
+          var S = layout === "tall" ? 1.1 : 1.3;
+          var offX = replyCx - canvasW / 2;
+          var offY = replyCy - canvasH / 2;
+
+          var tl = gsap.timeline({ paused: true });
+          tl.fromTo(win, { opacity: 0, scale: 0.965, y: 18 }, { opacity: 1, scale: 1, y: 0, duration: 0.6, ease: "power3.out" }, 0.05);
+
+          gsap.set(listEl, { y: M3_H });
+          gsap.set(m3, { autoAlpha: 0 });
+          gsap.set(replies, { autoAlpha: 0, y: 6 });
+          gsap.set(ac, { autoAlpha: 0, y: 8 });
+          gsap.set(thread, { x: paneW + 2, autoAlpha: 0 });
+          gsap.set(reply, { autoAlpha: 0, scale: 0.86 });
+
+          var driver = { t: 0 };
+          tl.to(driver, { t: TOTAL, duration: TOTAL, ease: "none", onUpdate: function () { renderComposer(driver.t); } }, 0);
+
+          var blink = { p: 0 };
+          tl.to(blink, {
+            p: Math.PI * 2 * (TOTAL / 0.9), duration: TOTAL, ease: "none",
+            onUpdate: function () {
+              var on = Math.sin(blink.p) > 0 || (driver.t > T0 - 0.1 && driver.t < T_TYPED + 0.05);
+              caretEl.style.opacity = on ? "1" : "0";
+            },
+          }, 0);
+
+          tl.fromTo(ac, { autoAlpha: 0, y: 8 }, { autoAlpha: 1, y: 0, duration: 0.2, ease: "power2.out" }, times[1]);
+          tl.to(ac, { autoAlpha: 0, y: 4, duration: 0.14, ease: "power2.in" }, times[6] - 0.3);
+          tl.to(listEl, { y: 0, duration: 0.45, ease: "power3.out" }, T_SEND);
+          tl.fromTo(m3, { autoAlpha: 0, y: 10 }, { autoAlpha: 1, y: 0, duration: 0.3, ease: "power2.out" }, T_SEND + 0.05);
+          tl.to(thread, { x: 0, duration: 0.55, ease: "power3.out" }, T_THREAD);
+          tl.to(thread, { autoAlpha: 1, duration: 0.08 }, T_THREAD);
+          if (layout === "wide") tl.to(document.getElementById("sl-members"), { autoAlpha: 0, duration: 0.2 }, T_THREAD);
+          if (layout === "tall") tl.to([document.getElementById("sl-chh"), document.getElementById("sl-msgs"), document.getElementById("sl-composer")], { autoAlpha: 0, duration: 0.25 }, T_THREAD + 0.2);
+          tl.fromTo(reply, { autoAlpha: 0, scale: 0.86 }, { autoAlpha: 1, scale: 1, duration: 0.42, ease: "power3.out" }, T_REPLY);
+          tl.fromTo(replies, { autoAlpha: 0, y: 6 }, { autoAlpha: 1, y: 0, duration: 0.3, ease: "power2.out" }, T_REPLY + 0.15);
+          tl.to(world, { scale: S, x: -offX * S, y: -offY * S, duration: 1.4, ease: "power3.inOut" }, T_ZOOM);
+
+          window.__timelines["slack"] = tl;
+          tl.seek(0);
+        })();
+      </script>
+    </template>
+  </body>
+</html>

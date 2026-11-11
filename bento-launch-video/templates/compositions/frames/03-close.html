@@ -1,0 +1,72 @@
+<!doctype html>
+<html
+  lang="en"
+  data-composition-variables='[
+    { "id": "layout", "type": "enum", "role": "content", "label": "Layout", "description": "wide for 16:9 hosts, tall for 9:16 hosts.", "default": "wide", "options": [{ "value": "wide", "label": "Wide" }, { "value": "tall", "label": "Tall" }] }
+  ]'
+>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Close</title>
+  </head>
+  <body>
+    <template>
+      <style>
+        #root { position: absolute; inset: 0; overflow: hidden; background: #0e0d0b; font-family: Inter, "Helvetica Neue", Arial, sans-serif; color: #ededed; }
+        #root * { box-sizing: border-box; margin: 0; padding: 0; }
+        .cl-bg {
+          position: absolute; inset: 0;
+          background:
+            radial-gradient(900px 700px at 28% 22%, rgba(255, 138, 61, 0.16), transparent 70%),
+            radial-gradient(900px 700px at 78% 84%, rgba(77, 163, 255, 0.1), transparent 70%),
+            #0e0d0b;
+        }
+        .cl-grid {
+          position: absolute; inset: 0;
+          background-image:
+            linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+          background-size: 80px 80px;
+        }
+        .stack { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 26px; }
+        .lockup { display: flex; align-items: center; gap: 26px; will-change: transform, opacity; }
+        .lockup svg { width: 120px; height: 120px; display: block; }
+        .word { font-size: 112px; font-weight: 900; letter-spacing: -0.05em; line-height: 1; color: #ededed; }
+        .tag { font-size: 32px; color: #a8a49b; text-align: center; max-width: 1200px; line-height: 1.35; will-change: transform, opacity; }
+        .tag b { color: #ededed; font-weight: 600; }
+        .url { font-size: 22px; color: #8b867c; letter-spacing: 0.02em; will-change: transform, opacity; }
+        #root[data-layout="tall"] .lockup { flex-direction: column; gap: 30px; }
+        #root[data-layout="tall"] .lockup svg { width: 160px; height: 160px; }
+        #root[data-layout="tall"] .tag { max-width: 860px; font-size: 38px; padding: 0 40px; }
+        #root[data-layout="tall"] .stack { gap: 36px; }
+      </style>
+
+      <div id="root" data-composition-id="close" data-width="1920" data-height="1080">
+        <div class="cl-bg"></div>
+        <div class="cl-grid"></div>
+        <div class="stack">
+          <div class="lockup" id="cl-lockup">
+            <svg viewBox="0 0 64 64" aria-hidden="true"><rect x="1" y="1" width="62" height="62" rx="14" fill="#12161E" stroke="#39414F" stroke-width="2"/><rect x="10" y="10" width="26" height="26" rx="5" fill="#F97316"/><rect x="40" y="10" width="14" height="26" rx="5" fill="#3A4353"/><rect x="10" y="40" width="14" height="14" rx="5" fill="#3A4353"/><rect x="28" y="40" width="26" height="14" rx="5" fill="#3E77E8"/></svg>
+            <div class="word">Bento</div>
+          </div>
+          <div class="tag" id="cl-tag">Tag <b>@bento</b> to build your feature</div>
+          <div class="url" id="cl-url">usebento.ai</div>
+        </div>
+      </div>
+
+      <script>
+        (function () {
+          var vars = window.__hyperframes && window.__hyperframes.getVariables ? window.__hyperframes.getVariables() : {};
+          var layout = vars.layout === "tall" ? "tall" : "wide";
+          document.getElementById("root").setAttribute("data-layout", layout);
+          var tl = gsap.timeline({ paused: true });
+          tl.fromTo("#cl-lockup", { opacity: 0, scale: 0.72 }, { opacity: 1, scale: 1, duration: 0.7, ease: "power3.out" }, 0.25);
+          tl.fromTo("#cl-tag", { opacity: 0, y: 22 }, { opacity: 1, y: 0, duration: 0.6, ease: "power2.out" }, 0.75);
+          tl.fromTo("#cl-url", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.5, ease: "power2.out" }, 1.1);
+          window.__timelines["close"] = tl;
+          tl.seek(0);
+        })();
+      </script>
+    </template>
+  </body>
+</html>

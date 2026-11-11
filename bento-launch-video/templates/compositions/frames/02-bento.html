@@ -1,0 +1,310 @@
+<!doctype html>
+<html
+  lang="en"
+  data-composition-variables='[
+    { "id": "layout", "type": "enum", "role": "content", "label": "Layout", "description": "wide for 16:9 hosts, tall for 9:16 hosts.", "default": "wide", "options": [{ "value": "wide", "label": "Wide" }, { "value": "tall", "label": "Tall" }] }
+  ]'
+>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Bento scene</title>
+  </head>
+  <body>
+    <template>
+      <style>
+        #root { position: absolute; inset: 0; overflow: hidden; background: #0e0d0b; font-family: Inter, "Helvetica Neue", Arial, sans-serif; color: #ededed; font-size: 14px; line-height: 1.4; }
+        #root * { box-sizing: border-box; margin: 0; padding: 0; }
+        #bn-world { position: absolute; inset: 0; transform-origin: 50% 50%; will-change: transform; }
+        .bn-bg {
+          position: absolute; inset: -800px;
+          background:
+            radial-gradient(900px 700px at 28% 22%, rgba(255, 138, 61, 0.16), transparent 70%),
+            radial-gradient(900px 700px at 78% 84%, rgba(77, 163, 255, 0.1), transparent 70%),
+            #0e0d0b;
+        }
+        .bn-grid {
+          position: absolute; inset: -800px;
+          background-image:
+            linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+          background-size: 80px 80px;
+        }
+        .win { position: absolute; left: 140px; top: 70px; width: 1640px; height: 940px; border-radius: 14px; overflow: hidden; background: #0e0d0b; border: 1px solid #2a2722; box-shadow: 0 40px 90px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(0, 0, 0, 0.6); }
+        #root[data-layout="tall"] .win { left: 50px; top: 520px; width: 980px; height: 880px; }
+        .tb { position: absolute; left: 0; right: 0; top: 0; height: 44px; background: #161411; border-bottom: 1px solid #2a2722; }
+        .tb i { position: absolute; top: 15px; width: 13px; height: 13px; border-radius: 50%; }
+        .tb i:nth-child(1) { left: 18px; background: #ff5f57; }
+        .tb i:nth-child(2) { left: 39px; background: #febc2e; }
+        .tb i:nth-child(3) { left: 60px; background: #28c840; }
+        .tb span { position: absolute; left: 0; right: 0; top: 13px; text-align: center; font-size: 13px; color: #8b867c; }
+        .nav { position: absolute; left: 0; right: 0; top: 44px; height: 54px; border-bottom: 1px solid #2a2722; background: #0e0d0b; }
+        .brand { position: absolute; left: 18px; top: 13px; height: 28px; line-height: 28px; font-weight: 700; font-size: 15px; letter-spacing: -0.02em; color: #ededed; }
+        .brand svg { width: 26px; height: 26px; vertical-align: -7px; margin-right: 9px; }
+        .proj { position: absolute; left: 128px; top: 13px; height: 28px; line-height: 26px; padding: 0 10px; border: 1px solid #2a2722; border-radius: 7px; background: #161411; color: #a8a49b; font-size: 13px; }
+        .proj::after { content: ""; display: inline-block; margin-left: 8px; width: 6px; height: 6px; border-right: 1.5px solid #8b867c; border-bottom: 1.5px solid #8b867c; transform: translateY(-3px) rotate(45deg); }
+        .tabs { position: absolute; left: 0; right: 0; top: 0; height: 54px; text-align: center; white-space: nowrap; }
+        .tabs span { display: inline-block; height: 54px; line-height: 54px; padding: 0 14px; color: #a8a49b; font-size: 13px; position: relative; }
+        .tabs span.on { color: #ededed; }
+        .tabs span.on::after { content: ""; position: absolute; left: 14px; right: 14px; bottom: 0; height: 2px; background: #ff8a3d; }
+        #root[data-layout="tall"] .tabs { left: auto; right: 56px; text-align: right; }
+        .newcard { position: absolute; right: 60px; top: 13px; height: 28px; line-height: 28px; padding: 0 12px; border-radius: 7px; background: #ff8a3d; color: #0e0d0b; font-weight: 700; font-size: 13px; }
+        #root[data-layout="tall"] .newcard { display: none; }
+        .me { position: absolute; right: 18px; top: 13px; width: 28px; height: 28px; border-radius: 50%; background: #e8912d; color: #0e0d0b; font-weight: 700; font-size: 11px; text-align: center; line-height: 28px; }
+        .board { position: absolute; left: 0; right: 0; top: 98px; bottom: 0; overflow: hidden; }
+        .lane { position: absolute; top: 20px; bottom: 20px; width: 250px; background: #161411; border: 1px solid #2a2722; border-radius: 12px; overflow: hidden; }
+        #root[data-layout="tall"] .lane { top: 24px; bottom: 24px; width: 300px; }
+        .lane-head { height: 44px; padding: 0 14px; line-height: 44px; border-bottom: 1px solid #2a2722; font-weight: 700; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .lane-ord { display: inline-block; width: 20px; height: 20px; border-radius: 6px; background: #1d1b17; border: 1px solid #3d392f; color: #a8a49b; text-align: center; line-height: 18px; font-size: 11px; margin-right: 8px; vertical-align: 1px; }
+        .lane-count { float: right; color: #8b867c; font-weight: 400; font-size: 12px; }
+        .lane-sub { height: 40px; padding: 6px 14px 0; font-size: 11px; color: #8b867c; line-height: 15px; border-bottom: 1px solid #2a2722; }
+        .lane-sub b { display: block; color: #a8a49b; font-weight: 600; }
+        .lane-cards { padding: 10px; }
+        .card { position: relative; background: #1d1b17; border: 1px solid #2a2722; border-radius: 7px; padding: 11px 12px 10px; margin-bottom: 10px; transform-origin: 50% 40%; will-change: transform, opacity; }
+        .card-title { display: block; font-weight: 600; font-size: 13.5px; color: #ededed; line-height: 1.3; margin-bottom: 7px; }
+        .card-meta { display: block; font-size: 12px; color: #a8a49b; height: 16px; line-height: 16px; }
+        .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #6d675c; margin-right: 7px; vertical-align: 0; transform-origin: 50% 50%; }
+        .dot.run { background: #4da3ff; }
+        .dot.gate { background: #f2c40d; }
+        .card-session { display: block; font-size: 11px; color: #8b867c; margin-top: 5px; height: 14px; line-height: 14px; }
+        .card-session em { float: right; font-style: normal; }
+        .card-line { display: block; font-size: 11.5px; color: #a8a49b; margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; height: 15px; }
+        .card.hot { border-color: rgba(77, 163, 255, 0.5); box-shadow: 0 0 0 1px rgba(77, 163, 255, 0.18), 0 0 24px rgba(77, 163, 255, 0.14); }
+        .drawer { position: absolute; right: 0; top: 44px; bottom: 0; width: 560px; display: flex; flex-direction: column; background: #161411; border-left: 1px solid #3d392f; box-shadow: -24px 0 48px rgba(0, 0, 0, 0.45); will-change: transform; }
+        .d-head { padding: 18px 24px 0; flex: none; }
+        .topline { height: 26px; line-height: 26px; margin-bottom: 10px; position: relative; }
+        .kicker { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #8b867c; margin-right: 10px; }
+        .chip { display: inline-block; height: 22px; line-height: 20px; padding: 0 9px; border: 1px solid #2a2722; border-radius: 999px; font-size: 12px; color: #a8a49b; background: #1d1b17; vertical-align: 1px; }
+        .chip.active { color: #4da3ff; border-color: rgba(77, 163, 255, 0.35); }
+        .close { position: absolute; right: 0; top: 0; width: 26px; height: 26px; border-radius: 7px; color: #a8a49b; text-align: center; font-size: 18px; line-height: 24px; }
+        .d-title { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.25; margin-bottom: 14px; }
+        .stage { border: 1px solid #2a2722; border-radius: 12px; background: #1d1b17; padding: 12px 14px 12px; margin-bottom: 14px; }
+        .stage-h { font-size: 13px; font-weight: 600; height: 18px; line-height: 18px; }
+        .stage-h em { float: right; font-style: normal; font-weight: 400; color: #8b867c; font-size: 12px; }
+        .progress { display: flex; gap: 6px; margin: 10px 0 10px; }
+        .progress i { display: block; flex: 1; height: 4px; border-radius: 2px; background: #2a2722; }
+        .progress i.done { background: #3d392f; }
+        .progress i.cur { background: #ff8a3d; }
+        .agent { font-size: 12px; color: #a8a49b; height: 18px; line-height: 18px; }
+        .agent b { color: #ededed; font-weight: 600; }
+        .agent .pm { display: inline-block; width: 14px; height: 14px; border-radius: 4px; background: #d97757; vertical-align: -3px; margin-right: 7px; }
+        .agent em { float: right; font-style: normal; color: #8b867c; }
+        .tabs2 { height: 36px; flex: none; border-bottom: 1px solid #2a2722; padding: 0 24px; white-space: nowrap; }
+        .tabs2 span { display: inline-block; height: 36px; line-height: 34px; padding: 0 2px; margin-right: 18px; font-size: 13px; color: #a8a49b; position: relative; }
+        .tabs2 span.on { color: #ededed; }
+        .tabs2 span.on::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: #ff8a3d; }
+        .tabs2 .dot { margin-left: 6px; margin-right: 0; vertical-align: 1px; }
+        .d-body { flex: 1 1 auto; min-height: 0; margin: 0 24px 18px; display: flex; flex-direction: column; }
+        .d-desc { font-size: 12px; color: #8b867c; margin: 14px 0 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: none; }
+        .chat { flex: 1 1 auto; min-height: 0; background: #0e0d0b; border: 1px solid #2a2722; border-radius: 7px; padding: 12px; font-size: 13px; line-height: 1.55; color: #ededed; overflow: hidden; display: flex; flex-direction: column; }
+        .chat-run { display: flex; align-items: center; gap: 10px; margin: 2px 0 6px; color: #8b867c; font-size: 11px; white-space: nowrap; }
+        .chat-run::before, .chat-run::after { content: ""; flex: 1; height: 1px; background: #2a2722; }
+        .chat-row { display: flex; margin: 4px 0; will-change: transform, opacity; }
+        .chat-row-system { justify-content: center; }
+        .chat-note { max-width: 92%; text-align: center; font-size: 11.5px; color: #8b867c; }
+        .chat-bubble { display: flex; flex-direction: column; gap: 3px; max-width: 88%; padding: 8px 12px; border-radius: 12px; background: #1d1b17; border: 1px solid #2a2722; }
+        .chat-meta { font-size: 10.5px; font-weight: 600; color: #a8a49b; }
+        .chat-text { white-space: normal; }
+        .chat-tools { max-width: 88%; padding: 6px 10px; border: 1px solid #2a2722; border-radius: 12px; font-family: "JetBrains Mono", ui-monospace, Menlo, monospace; font-size: 11px; color: #8b867c; }
+        .chat-tools .sum { display: flex; gap: 8px; align-items: baseline; padding: 4px 0; color: #a8a49b; }
+        .chat-tools .sum::before { content: "▾"; color: #8b867c; }
+        .chat-tools .sum b { font-weight: 400; color: #8b867c; }
+        .tool-list { margin-top: 4px; border-top: 1px solid #2a2722; }
+        .tool-call { padding: 5px 0; color: #ededed; display: flex; gap: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; will-change: transform, opacity; }
+        .tool-call + .tool-call { border-top: 1px solid #2a2722; }
+        .tool-call::before { content: "▸"; color: #8b867c; flex: none; }
+        .tool-call em { font-style: normal; color: #ff8a3d; }
+        .composer { display: flex; gap: 8px; margin-top: 8px; align-items: flex-end; flex: none; }
+        .composer .input { flex: 1; height: 34px; line-height: 32px; padding: 0 10px; border: 1px solid #3d392f; border-radius: 7px; background: #0e0d0b; color: #8b867c; font-size: 13px; }
+        .composer .stop { width: 34px; height: 34px; border: 1px solid #ff6b5e; border-radius: 7px; position: relative; flex: none; }
+        .composer .stop::after { content: ""; position: absolute; left: 12px; top: 12px; width: 9px; height: 9px; background: #ff6b5e; border-radius: 1px; }
+        .composer .send { width: 40px; height: 34px; border-radius: 7px; background: #ff8a3d; position: relative; flex: none; }
+        .composer .send::after { content: ""; position: absolute; left: 15px; top: 10px; width: 8px; height: 8px; border-top: 2px solid #0e0d0b; border-right: 2px solid #0e0d0b; transform: rotate(-45deg); }
+        .composer-hint { font-size: 11px; color: #8b867c; margin-top: 6px; flex: none; }
+        .cursor-line { display: inline-block; width: 8px; height: 14px; background: #4da3ff; vertical-align: -2px; margin-left: 2px; }
+      </style>
+
+      <div id="root" data-composition-id="bento" data-width="1920" data-height="1080">
+        <div id="bn-world">
+          <div class="bn-bg" data-layout-ignore></div>
+          <div class="bn-grid" data-layout-ignore></div>
+          <div class="win">
+            <div class="tb"><i></i><i></i><i></i><span>Bento</span></div>
+            <div class="nav">
+              <div class="tabs"><span class="on">Board</span><span>Sessions</span><span>Settings</span></div>
+              <div class="brand">
+                <svg viewBox="0 0 64 64" aria-hidden="true"><rect x="1" y="1" width="62" height="62" rx="14" fill="#12161E" stroke="#39414F" stroke-width="2"/><rect x="10" y="10" width="26" height="26" rx="5" fill="#F97316"/><rect x="40" y="10" width="14" height="26" rx="5" fill="#3A4353"/><rect x="10" y="40" width="14" height="14" rx="5" fill="#3A4353"/><rect x="28" y="40" width="26" height="14" rx="5" fill="#3E77E8"/></svg>Bento
+              </div>
+              <div class="proj">bento-www</div>
+              <div class="newcard">New card</div>
+              <div class="me">JR</div>
+            </div>
+            <div class="board">
+              <div class="lane" id="bn-lane0">
+                <div class="lane-head">Backlog<span class="lane-count">2</span></div>
+                <div class="lane-sub"><b>Ideas and requests</b>Drag a card into a stage to start it</div>
+                <div class="lane-cards">
+                  <div class="card"><span class="card-title">Export the board as CSV</span><span class="card-meta"><span class="dot"></span>idle</span></div>
+                  <div class="card"><span class="card-title">Keyboard shortcuts for the drawer</span><span class="card-meta"><span class="dot"></span>idle</span></div>
+                </div>
+              </div>
+              <div class="lane" id="bn-lane1">
+                <div class="lane-head"><span class="lane-ord">1</span>Engineering requirements<span class="lane-count" id="bn-count1">0</span></div>
+                <div class="lane-sub"><b>Staff Engineer</b>Review before advancing</div>
+                <div class="lane-cards">
+                  <div class="card" id="bn-card">
+                    <span class="card-title">Dark mode for the settings page</span>
+                    <span class="card-meta"><span class="dot" id="bn-dot"></span><span id="bn-state">queued</span></span>
+                    <span class="card-session" id="bn-session">Staff Engineer · 1 run<em>Oct 17</em></span>
+                    <span class="card-line" id="bn-line" data-layout-ignore></span>
+                  </div>
+                </div>
+              </div>
+              <div class="lane" id="bn-lane2" data-layout-allow-occlusion>
+                <div class="lane-head"><span class="lane-ord">2</span>Implementation<span class="lane-count">1</span></div>
+                <div class="lane-sub"><b>Software Engineer</b>Advances automatically</div>
+                <div class="lane-cards">
+                  <div class="card">
+                    <span class="card-title">Linear sync for card comments</span>
+                    <span class="card-meta"><span class="dot run"></span>agent working</span>
+                    <span class="card-session">Software Engineer · 2 runs<em>Oct 16</em></span>
+                    <span class="card-line" data-layout-ignore>Adding the webhook handler for comment events.</span>
+                  </div>
+                </div>
+              </div>
+              <div class="lane" id="bn-lane3" data-layout-allow-occlusion>
+                <div class="lane-head"><span class="lane-ord">3</span>Code review<span class="lane-count">1</span></div>
+                <div class="lane-sub"><b>Code Reviewer</b>Review before advancing</div>
+                <div class="lane-cards">
+                  <div class="card">
+                    <span class="card-title">Rate limit the device flow</span>
+                    <span class="card-meta"><span class="dot gate"></span>waiting for review</span>
+                    <span class="card-session">Code Reviewer · 1 run<em>Oct 15</em></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="drawer" id="bn-drawer" data-layout-allow-overflow>
+              <div class="d-head">
+                <div class="topline"><span class="kicker">Feature</span><span class="chip active">Agent working</span><span class="close" data-layout-ignore>×</span></div>
+                <div class="d-title">Dark mode for the settings page</div>
+                <div class="stage">
+                  <div class="stage-h">Engineering requirements<em>Stage 1 of 3</em></div>
+                  <div class="progress"><i class="done"></i><i class="cur"></i><i></i><i></i><i></i></div>
+                  <div class="agent"><span class="pm"></span><b>Staff Engineer</b><em>Manual approval</em></div>
+                </div>
+              </div>
+              <div class="tabs2"><span>Overview</span><span>Changes</span><span class="on">Chat</span><span>History</span></div>
+              <div class="d-body" id="bn-body">
+                <div class="d-desc" data-layout-ignore>Created from Slack: acme.slack.com/archives/C04PRD/p1760694240</div>
+                <div class="chat">
+                  <div class="chat-run"><span>Staff Engineer · just now · running</span></div>
+                  <div class="chat-row chat-row-system" id="bn-l1"><span class="chat-note">Sandbox ready. Staff Engineer is on the card.</span></div>
+                  <div class="chat-row" id="bn-l2"><div class="chat-bubble"><span class="chat-meta">Staff Engineer</span><span class="chat-text">Reading the settings page and the theme tokens in styles.css.</span></div></div>
+                  <div class="chat-row" id="bn-l3"><div class="chat-tools"><div class="sum">Read files<b id="bn-toolcount">1 tool call</b></div><div class="tool-list"><div class="tool-call"><em>Read</em>apps/web/src/styles.css</div><div class="tool-call" id="bn-l4"><em>Read</em>apps/web/src/components/AppearanceSettings.tsx</div></div></div></div>
+                  <div class="chat-row" id="bn-l5"><div class="chat-bubble"><span class="chat-meta">Staff Engineer</span><span class="chat-text">The console already ships light and dark palettes. The settings page needs a theme control, a per user preference, and a system default.</span></div></div>
+                  <div class="chat-row" id="bn-l6"><div class="chat-bubble"><span class="chat-meta">Staff Engineer</span><span class="chat-text">Writing the engineering requirements and the system design.<span class="cursor-line" id="bn-cur"></span></span></div></div>
+                  <div class="chat-row" id="bn-l7"><div class="chat-tools"><div class="sum">Write files<b>1 tool call</b></div><div class="tool-list"><div class="tool-call"><em>Write</em>docs/dark-mode-settings.md</div></div></div></div>
+                </div>
+                <div class="composer"><div class="input">Queue a message...</div><div class="stop"></div><div class="send"></div></div>
+                <div class="composer-hint">Sent while the agent works, so it reads this after its current step.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <script>
+        (function () {
+          var vars = window.__hyperframes && window.__hyperframes.getVariables ? window.__hyperframes.getVariables() : {};
+          var layout = vars.layout === "tall" ? "tall" : "wide";
+          var root = document.getElementById("root");
+          root.setAttribute("data-layout", layout);
+
+          var lanes = [0, 1, 2, 3].map(function (n) { return document.getElementById("bn-lane" + n); });
+          if (layout === "tall") {
+            lanes[0].style.display = "none";
+            for (var i = 1; i < 4; i++) lanes[i].style.left = 24 + (i - 1) * 316 + "px";
+          } else {
+            for (var j = 0; j < 4; j++) lanes[j].style.left = 20 + j * 264 + "px";
+          }
+
+          // The drawer is a fixed panel in the real console and covers whatever sits under it.
+          document.querySelectorAll("#root .nav *, #bn-lane2 *, #bn-lane3 *, #bn-lane2, #bn-lane3").forEach(function (el) {
+            el.setAttribute("data-layout-allow-occlusion", "");
+          });
+          var card = document.getElementById("bn-card");
+          var dot = document.getElementById("bn-dot");
+          var state = document.getElementById("bn-state");
+          var session = document.getElementById("bn-session");
+          var line = document.getElementById("bn-line");
+          var count1 = document.getElementById("bn-count1");
+          var drawer = document.getElementById("bn-drawer");
+          var world = document.getElementById("bn-world");
+          var cur = document.getElementById("bn-cur");
+          var lineEls = [1, 2, 3, 4, 5, 6, 7].map(function (n) { return document.getElementById("bn-l" + n); });
+
+          var T_CARD = 1.0;
+          var T_RUN = 1.7;
+          var T_DRAWER = 2.3;
+          var T_LINES = [3.0, 3.7, 4.4, 5.0, 5.8, 6.9, 7.8];
+          var T_ZOOM = 4.9;
+          var TOTAL = 10.6;
+
+          var STATES = [
+            { t: 0, s: "queued", l: "", c: "0" },
+            { t: T_CARD, s: "queued", l: "", c: "1" },
+            { t: T_RUN, s: "agent working", l: "", c: "1" },
+            { t: T_LINES[1], s: "agent working", l: "Reading the settings page and the theme tokens in styles.css.", c: "1" },
+            { t: T_LINES[4], s: "agent working", l: "The console already ships light and dark palettes. The settings page needs a theme control.", c: "1" },
+            { t: T_LINES[5], s: "agent working", l: "Writing the engineering requirements and the system design.", c: "1" },
+          ];
+          var lastIdx = -1;
+          function applyState(time) {
+            var idx = 0;
+            for (var k = STATES.length - 1; k >= 0; k--) { if (time >= STATES[k].t) { idx = k; break; } }
+            document.getElementById("bn-toolcount").textContent = time >= T_LINES[3] ? "2 tool calls" : "1 tool call";
+            if (idx === lastIdx) return;
+            lastIdx = idx;
+            state.textContent = STATES[idx].s;
+            line.textContent = STATES[idx].l;
+            count1.textContent = STATES[idx].c;
+            dot.className = time >= T_RUN ? "dot run" : "dot";
+            card.className = time >= T_RUN ? "card hot" : "card";
+          }
+
+          var tl = gsap.timeline({ paused: true });
+          gsap.set(card, { autoAlpha: 0, scale: 0.9, y: 14 });
+          gsap.set(session, { opacity: 0 });
+          gsap.set(lineEls, { autoAlpha: 0, y: 10 });
+          gsap.set(drawer, { x: 600, autoAlpha: 0 });
+          tl.to(drawer, { autoAlpha: 1, duration: 0.08 }, 2.3);
+
+          var driver = { t: 0 };
+          tl.to(driver, { t: TOTAL, duration: TOTAL, ease: "none", onUpdate: function () { applyState(driver.t); } }, 0);
+          tl.fromTo(card, { autoAlpha: 0, scale: 0.9, y: 14 }, { autoAlpha: 1, scale: 1, y: 0, duration: 0.5, ease: "power3.out" }, T_CARD);
+          tl.fromTo(session, { opacity: 0 }, { opacity: 1, duration: 0.3, ease: "power2.out" }, T_RUN);
+          tl.fromTo(dot, { scale: 1 }, { scale: 1.45, duration: 0.65, ease: "sine.inOut", yoyo: true, repeat: 13 }, T_RUN);
+          tl.to(drawer, { x: 0, duration: 0.55, ease: "power3.out" }, T_DRAWER);
+          for (var n = 0; n < lineEls.length; n++) {
+            tl.fromTo(lineEls[n], { autoAlpha: 0, y: 10 }, { autoAlpha: 1, y: 0, duration: 0.32, ease: "power2.out" }, T_LINES[n]);
+          }
+          var blink = { p: 0 };
+          tl.to(blink, {
+            p: Math.PI * 2 * (TOTAL / 0.8), duration: TOTAL, ease: "none",
+            onUpdate: function () {
+              var typing = driver.t >= T_LINES[5] && driver.t < T_LINES[6];
+              cur.style.opacity = typing && Math.sin(blink.p) > 0 ? "1" : "0";
+            },
+          }, 0);
+          var S = layout === "tall" ? 1.1 : 1.12;
+          var offX = layout === "tall" ? 0 : 290;
+          var offY = layout === "tall" ? 0 : 24;
+          tl.to(world, { scale: S, x: -offX * S, y: -offY * S, duration: 1.6, ease: "power2.inOut" }, T_ZOOM);
+
+          window.__timelines["bento"] = tl;
+          tl.seek(0);
+        })();
+      </script>
+    </template>
+  </body>
+</html>
